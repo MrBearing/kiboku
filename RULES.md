@@ -1,13 +1,13 @@
-# Chelonian Rules Specification
+# Kiboku Rules Specification
 
-This document describes the TOML rule format used by Chelonian and the meaning of the `severity` field.
+This document describes the TOML rule format used by Kiboku and the meaning of the `severity` field.
 
 ## Overview
 
 Rules are declared in TOML files. Each file may contain multiple `[[rules]]` entries. The loader reads rules from:
 
-- The path provided with `kelo analyze --rules` (file or directory),
-- `~/.config/chelonian/rules/*.toml`,
+- The path provided with `bok analyze --rules` (file or directory),
+- `~/.config/kiboku/rules/*.toml`,
 - Bundled built-in rules.
 
 Rules are intended to be flexible: some rules only *discover* occurrences (investigation), while others may indicate actionable migration concerns.

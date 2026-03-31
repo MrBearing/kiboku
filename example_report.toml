@@ -1,6 +1,6 @@
 # report.toml
 #
-# title: レポートのタイトル（オプション、デフォルト: "Chelonian Report"）
+# title: レポートのタイトル（オプション、デフォルト: "Kiboku Report"）
 # sections: セクションの表示順（縦に並ぶ順序）
 # hidden: セクションを非表示（sections に含まれていても隠せる）
 #
@@ -16,7 +16,7 @@
 # - 値は CSS の長さ（例: "700px", "60vh"）
 # - String / Integer / Float のみ対応（Float は px に丸める。それ以外: bool/array/table/datetime/... は無視）
 
-title = "This is sample of Chelonian Report"
+title = "This is sample of Kiboku Report"
 
 sections = [
   "package_summary",
@@ -38,5 +38,4 @@ external_dependencies = "700px"
 # 外部ライブラリ名 -> リポジトリURL（任意）
 [external_repos]
 roscpp = "https://github.com/ros/ros_comm"
-
 

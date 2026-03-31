@@ -38,7 +38,7 @@ fn run_subcommand_generates_report_bundle() {
     let cfg_path = base.join("report.toml");
     write(&cfg_path, "title = \"Run Test\"\n").expect("write report.toml");
 
-    let exe = env!("CARGO_BIN_EXE_kelo");
+    let exe = env!("CARGO_BIN_EXE_bok");
     let output = Command::new(exe)
         .args([
             "run",
@@ -51,9 +51,9 @@ fn run_subcommand_generates_report_bundle() {
             cfg_path.to_str().unwrap(),
         ])
         .output()
-        .expect("run kelo run");
+        .expect("run bok run");
 
-    assert!(output.status.success(), "kelo run failed: {output:?}");
+    assert!(output.status.success(), "bok run failed: {output:?}");
 
     assert!(out_dir.join("index.html").exists(), "index.html missing");
     assert!(
@@ -75,7 +75,7 @@ fn run_shorthand_generates_report_bundle() {
 
     let out_dir = base.join("results");
 
-    let exe = env!("CARGO_BIN_EXE_kelo");
+    let exe = env!("CARGO_BIN_EXE_bok");
     let output = Command::new(exe)
         .args([
             base.to_str().unwrap(),
@@ -85,11 +85,11 @@ fn run_shorthand_generates_report_bundle() {
             out_dir.to_str().unwrap(),
         ])
         .output()
-        .expect("run kelo <WORKSPACE>");
+        .expect("run bok <WORKSPACE>");
 
     assert!(
         output.status.success(),
-        "kelo WORKSPACE shorthand failed: {output:?}"
+        "bok WORKSPACE shorthand failed: {output:?}"
     );
 
     assert!(out_dir.join("index.html").exists(), "index.html missing");

@@ -50,7 +50,7 @@ pub fn load_rules_from_path(
 
     // 3. config dir
     if let Some(mut dir) = dirs_next::config_dir() {
-        dir.push("chelonian");
+        dir.push("kiboku");
         dir.push("rules");
         if dir.exists() {
             for entry in fs::read_dir(dir)? {

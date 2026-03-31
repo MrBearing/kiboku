@@ -1,17 +1,17 @@
 [package]
-name = "chelonian"
+name = "kiboku"
 version = "0.4.0"
 edition = "2021"
 description = "Static analyzer for ROS workspaces"
 readme = "README.md"
 license = "MIT"
-repository = "https://github.com/mrbearing/chelonian"
+repository = "https://github.com/mrbearing/kiboku"
 authors = ["MrBearing <takumi1988okamoto@gmail.com>"]
 keywords = ["ros", "ros2", "static-analysis", "migration", "robotics"]
 categories = ["development-tools", "command-line-utilities"]
 
 [[bin]]
-name = "kelo"
+name = "bok"
 path = "src/main.rs"
 
 [dependencies]

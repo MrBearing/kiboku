@@ -93,7 +93,7 @@ function renderHeader(reportData) {
   const generatedEl = document.getElementById('report-generated-at');
   const meta = reportData && reportData.meta ? reportData.meta : null;
 
-  const title = meta && meta.title ? String(meta.title) : 'Chelonian Report';
+  const title = meta && meta.title ? String(meta.title) : 'Kiboku Report';
   if (titleEl) titleEl.textContent = title;
   // Also update the document title tag
   document.title = title;

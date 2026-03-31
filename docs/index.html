@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Chelonian is a CLI static analysis tool for ROS workspaces. View sample reports and download analysis.json outputs." />
-  <title>Chelonian — ROS Workspace Static Analysis</title>
+  <meta name="description" content="Kiboku is a CLI static analysis tool for ROS workspaces. View sample reports and download analysis.json outputs." />
+  <title>Kiboku — ROS Workspace Static Analysis</title>
   <style>
     :root {
       color-scheme: light dark;
@@ -137,7 +137,7 @@
 <body>
   <div class="wrap">
     <header>
-      <h1>Chelonian</h1>
+      <h1>Kiboku</h1>
       <p class="subtitle">
         A CLI static analysis tool for ROS workspaces. It scans packages, evaluates rule-based findings, and can generate a
         static HTML report you can publish anywhere.
@@ -147,8 +147,8 @@
     <main aria-label="Main content">
       <section aria-labelledby="install-title">
         <h2 id="install-title">Install</h2>
-        <p>Install the CLI via Cargo (the binary name is <code>kelo</code>):</p>
-        <pre><code>cargo install chelonian
+        <p>Install the CLI via Cargo (the binary name is <code>bok</code>):</p>
+        <pre><code>cargo install kiboku
 </code></pre>
         <p>If you are building from a local checkout:</p>
         <pre><code>cargo install --path . --locked
@@ -157,14 +157,14 @@
       <section aria-labelledby="how-title">
         <h2 id="how-title">How it works</h2>
         <p>
-          Chelonian runs as <code>kelo</code>. Typical usage is: analyze a workspace to JSON, then render the report.
+          Kiboku runs as <code>bok</code>. Typical usage is: analyze a workspace to JSON, then render the report.
           (Some setups also provide a one-shot command that performs both steps.)
         </p>
-        <pre><code>kelo analyze -p ros1 -f json -o analysis.json /path/to/ros/workspace
-kelo report analysis.json -o results/
+        <pre><code>bok analyze -p ros1 -f json -o analysis.json /path/to/ros/workspace
+bok report analysis.json -o results/
 
 # one-shot (analyze + report)
-kelo run /path/to/ros/workspace -p ros1 -o results/
+bok run /path/to/ros/workspace -p ros1 -o results/
 </code></pre>
       </section>
       <section aria-labelledby="samples-title">
@@ -193,7 +193,7 @@ kelo run /path/to/ros/workspace -p ros1 -o results/
         <h2 id="links-title">Project links</h2>
         <ul class="links">
           <li>
-            <a href="https://github.com/MrBearing/chelonian">
+            <a href="https://github.com/MrBearing/kiboku">
               <svg class="icon" width="18" height="18" viewBox="0 0 24 24" preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">
                 <path d="M10 7H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 <path d="M14 5h5v5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -203,7 +203,7 @@ kelo run /path/to/ros/workspace -p ros1 -o results/
             </a>
           </li>
           <li>
-            <a href="https://crates.io/crates/chelonian">
+            <a href="https://crates.io/crates/kiboku">
               <svg class="icon" width="18" height="18" viewBox="0 0 24 24" preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">
                 <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 <path d="M3.27 6.96 12 12.01l8.73-5.05" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>

@@ -80,24 +80,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
-name = "chelonian"
-version = "0.4.0"
-dependencies = [
- "anyhow",
- "clap",
- "dirs-next",
- "glob",
- "include_dir",
- "regex",
- "roxmltree",
- "serde",
- "serde_json",
- "tempfile",
- "toml",
- "walkdir",
-]
-
-[[package]]
 name = "clap"
 version = "4.5.53"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -267,6 +249,24 @@ name = "itoa"
 version = "1.0.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ee5b5339afb4c41626dde77b7a611bd4f2c202b897852b4bcf5d03eddc61010"
+
+[[package]]
+name = "kiboku"
+version = "0.4.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "dirs-next",
+ "glob",
+ "include_dir",
+ "regex",
+ "roxmltree",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "toml",
+ "walkdir",
+]
 
 [[package]]
 name = "libc"

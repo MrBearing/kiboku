@@ -167,7 +167,7 @@ suggestion = "#include <rclcpp/rclcpp.hpp>"
         commands::report::run(args).expect("report should succeed");
 
         let html = std::fs::read_to_string(output_html).expect("read report.html");
-        assert!(html.contains("<h1>Chelonian Report</h1>"));
+        assert!(html.contains("<h1>Kiboku Report</h1>"));
         assert!(html.contains("<caption>Findings list</caption>"));
         assert!(html.contains("test-rule"));
         assert!(html.contains("something happened"));
