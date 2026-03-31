@@ -16,6 +16,7 @@ pub fn parse_package_xml(path: &str) -> Result<Package> {
         dependencies: Vec::new(),
         format: None,
     };
+    let mut explicit_build_type: Option<String> = None;
 
     if let Some(fmt) = root.attribute("format") {
         if let Ok(n) = fmt.parse::<u8>() {
@@ -27,6 +28,18 @@ pub fn parse_package_xml(path: &str) -> Result<Package> {
         match child.tag_name().name() {
             "name" => pkg.name = child.text().unwrap_or_default().to_string(),
             "version" => pkg.version = child.text().map(|s| s.to_string()),
+            "export" => {
+                for export_child in child.children().filter(|n| n.is_element()) {
+                    if export_child.tag_name().name() == "build_type" {
+                        if let Some(bt) = export_child.text() {
+                            let bt = bt.trim();
+                            if !bt.is_empty() {
+                                explicit_build_type = Some(bt.to_string());
+                            }
+                        }
+                    }
+                }
+            }
             name if name.ends_with("depend")
                 || name == "build_depend"
                 || name == "exec_depend"
@@ -44,20 +57,25 @@ pub fn parse_package_xml(path: &str) -> Result<Package> {
         }
     }
 
-    // Heuristic build_type
-    for d in &pkg.dependencies {
-        if d.name == "catkin" {
-            pkg.build_type = Some("catkin".to_string());
-        }
-        if d.name == "ament_cmake" {
-            pkg.build_type = Some("ament_cmake".to_string());
-        }
-        if d.name == "ament_python" {
-            pkg.build_type = Some("ament_python".to_string());
-        }
-    }
+    pkg.build_type = explicit_build_type.or_else(|| heuristic_build_type(&pkg.dependencies));
 
     Ok(pkg)
+}
+
+fn heuristic_build_type(dependencies: &[Dependency]) -> Option<String> {
+    let mut build_type = None;
+    for d in dependencies {
+        if d.name == "catkin" {
+            build_type = Some("catkin".to_string());
+        }
+        if d.name == "ament_cmake" {
+            build_type = Some("ament_cmake".to_string());
+        }
+        if d.name == "ament_python" {
+            build_type = Some("ament_python".to_string());
+        }
+    }
+    build_type
 }
 
 fn infer_dep_kind(tag_name: &str) -> &'static str {

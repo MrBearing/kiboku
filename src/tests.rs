@@ -7,6 +7,7 @@ mod cli_tests {
     use crate::analyzer::analyze;
     use crate::commands;
     use crate::models::AnalysisReport;
+    use crate::parsers::package::parse_package_xml;
     use crate::plugins::loader::load_rules_from_path;
     use crate::scanner::scan_workspace;
 
@@ -90,6 +91,45 @@ suggestion = "#include <rclcpp/rclcpp.hpp>"
             .iter()
             .any(|v| v.rule_id == "ros1-dep-roscpp");
         assert!(has_roscpp, "expected roscpp dependency rule to trigger");
+    }
+
+    #[test]
+    fn parse_package_xml_prefers_export_build_type() {
+        let td = tempdir().expect("tempdir");
+        let pkg_path = td.path().join("package.xml");
+        write(
+            &pkg_path,
+            r#"<package format="3">
+  <name>my_pkg</name>
+  <version>0.1.0</version>
+  <depend>ament_cmake</depend>
+  <export>
+    <build_type>catkin</build_type>
+  </export>
+</package>"#,
+        )
+        .expect("write package.xml");
+
+        let pkg = parse_package_xml(pkg_path.to_str().unwrap()).expect("parse package.xml");
+        assert_eq!(pkg.build_type.as_deref(), Some("catkin"));
+    }
+
+    #[test]
+    fn parse_package_xml_falls_back_to_dependency_heuristic() {
+        let td = tempdir().expect("tempdir");
+        let pkg_path = td.path().join("package.xml");
+        write(
+            &pkg_path,
+            r#"<package format="3">
+  <name>my_pkg</name>
+  <version>0.1.0</version>
+  <depend>ament_cmake</depend>
+</package>"#,
+        )
+        .expect("write package.xml");
+
+        let pkg = parse_package_xml(pkg_path.to_str().unwrap()).expect("parse package.xml");
+        assert_eq!(pkg.build_type.as_deref(), Some("ament_cmake"));
     }
 
     #[test]
