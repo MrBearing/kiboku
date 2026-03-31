@@ -2,6 +2,8 @@
 
 Kiboku is a CLI static analysis tool for ROS workspaces.
 
+The name "Kiboku" is derived from `亀卜`, an old divination practice using turtle shells. The tool name keeps the turtle lineage from Chelonian while shifting to a shorter Japanese-rooted name for the new release line.
+
 Usage (for users)
 ------------------
 

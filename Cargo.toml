@@ -1,6 +1,6 @@
 [package]
 name = "kiboku"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2021"
 description = "Static analyzer for ROS workspaces"
 readme = "README.md"
