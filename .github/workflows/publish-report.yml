@@ -25,10 +25,10 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     
     steps:
-      - name: Checkout chelonian repository
+      - name: Checkout kiboku repository
         uses: actions/checkout@v4
         with:
-          path: chelonian
+          path: kiboku
 
       - name: Cache cargo
         uses: actions/cache@v4
@@ -36,8 +36,8 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            chelonian/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('chelonian/Cargo.lock') }}
+            kiboku/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('kiboku/Cargo.lock') }}
 
       - name: Install Rust
         uses: actions-rs/toolchain@v1
@@ -46,9 +46,9 @@ jobs:
           profile: minimal
           override: true
 
-      - name: Build chelonian
+      - name: Build kiboku
         run: |
-          cd chelonian
+          cd kiboku
           cargo build --release
           echo "$(pwd)/target/release" >> $GITHUB_PATH
 
@@ -62,7 +62,7 @@ jobs:
       - name: Generate ROS1 analysis JSON
         run: |
           cd moveit
-          kelo analyze --platform ros1 -f json -o ../analysis-ros1.json .
+          bok analyze --platform ros1 -f json -o ../analysis-ros1.json .
 
       - name: Copy ROS1 analysis JSON into site output
         run: |
@@ -71,7 +71,7 @@ jobs:
 
       - name: Generate ROS1 HTML report
         run: |
-          kelo report analysis-ros1.json -o report_output/ros1/ --config chelonian/docs/github_pages_report.toml
+          bok report analysis-ros1.json -o report_output/ros1/ --config kiboku/docs/github_pages_report.toml
 
       - name: Checkout sample ROS2 workspace (moveit2)
         uses: actions/checkout@v4
@@ -83,7 +83,7 @@ jobs:
       - name: Generate ROS2 analysis JSON
         run: |
           cd moveit2
-          kelo analyze --platform ros2 -f json -o ../analysis-ros2.json .
+          bok analyze --platform ros2 -f json -o ../analysis-ros2.json .
 
       - name: Copy ROS2 analysis JSON into site output
         run: |
@@ -92,11 +92,11 @@ jobs:
 
       - name: Generate ROS2 HTML report
         run: |
-          kelo report analysis-ros2.json -o report_output/ros2/ --config chelonian/docs/github_pages_report_ros2.toml
+          bok report analysis-ros2.json -o report_output/ros2/ --config kiboku/docs/github_pages_report_ros2.toml
 
       - name: Copy portal index.html
         run: |
-          cp chelonian/docs/index.html report_output/index.html
+          cp kiboku/docs/index.html report_output/index.html
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
