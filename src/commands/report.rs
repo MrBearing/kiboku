@@ -13,7 +13,7 @@ use crate::models::AnalysisReport;
 
 #[derive(Args, Debug, Clone)]
 pub struct ReportArgs {
-    /// Input analysis JSON file (produced by `kelo analyze --format json`)
+    /// Input analysis JSON file (produced by `bok analyze --format json`)
     pub input: PathBuf,
 
     /// Output path.
@@ -235,7 +235,7 @@ fn is_probably_css_length(value: &str) -> bool {
 
 fn load_report_config(config_path: Option<&Path>) -> Result<ReportConfig> {
     let defaults = ReportConfig {
-        title: "Chelonian Report".to_string(),
+        title: "Kiboku Report".to_string(),
         sections: vec![
             "package_summary".to_string(),
             "workspace_dependencies".to_string(),
@@ -650,10 +650,10 @@ fn render_html(report: &AnalysisReport) -> String {
     let mut out = String::new();
     out.push_str("<!doctype html>\n<html lang=\"en\">\n<head>\n");
     out.push_str("<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n");
-    out.push_str("<title>Chelonian Report</title>\n");
+    out.push_str("<title>Kiboku Report</title>\n");
     out.push_str("</head>\n<body>\n");
 
-    out.push_str("<h1>Chelonian Report</h1>\n");
+    out.push_str("<h1>Kiboku Report</h1>\n");
     out.push_str("<ul>\n");
     out.push_str(&format!("<li>Total packages: {}</li>\n", total_packages));
     out.push_str(&format!("<li>Total findings: {}</li>\n", total_findings));

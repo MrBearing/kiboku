@@ -1,6 +1,6 @@
 # GitHub Pages Report Configuration (ROS2 sample)
 
-title = "Chelonian Analysis Report - MoveIt2 Sample"
+title = "Kiboku Analysis Report - MoveIt2 Sample"
 
 sections = [
   "package_summary",

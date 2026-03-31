@@ -35,7 +35,7 @@ ignored_table = { a = 1 }
     .expect("write report.toml");
 
     // Run the CLI in a subprocess so we can reliably capture stderr.
-    let exe = env!("CARGO_BIN_EXE_kelo");
+    let exe = env!("CARGO_BIN_EXE_bok");
     let output = Command::new(exe)
         .args([
             "report",
@@ -46,9 +46,9 @@ ignored_table = { a = 1 }
             cfg_path.to_str().unwrap(),
         ])
         .output()
-        .expect("run kelo report");
+        .expect("run bok report");
 
-    assert!(output.status.success(), "kelo report failed: {output:?}");
+    assert!(output.status.success(), "bok report failed: {output:?}");
 
     let stderr = String::from_utf8_lossy(&output.stderr);
 
