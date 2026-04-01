@@ -46,7 +46,7 @@ pub fn parse_cmake_lists(path: &str) -> Result<CMakeInfo> {
         let target = cap.get(1).map(|m| m.as_str().to_string()).unwrap_or_default();
         let dependencies = cap
             .get(2)
-            .map(|m| split_cmake_args(m.as_str()))
+            .map(|m| split_ament_target_dependencies_args(m.as_str()))
             .unwrap_or_default();
         info.ament_target_dependencies.push(TargetDependencies { target, dependencies });
     }
@@ -78,13 +78,29 @@ fn split_cmake_args(s: &str) -> Vec<String> {
         .collect()
 }
 
+fn split_ament_target_dependencies_args(s: &str) -> Vec<String> {
+    s.split_whitespace()
+        .filter(|item| !item.is_empty())
+        .filter(|item| !matches!(*item, "SYSTEM" | "PUBLIC" | "INTERFACE"))
+        .map(|item| item.trim().to_string())
+        .collect()
+}
+
 fn split_link_libraries_args(s: &str) -> Vec<String> {
     s.split_whitespace()
         .filter(|item| !item.is_empty())
         .filter(|item| {
             !matches!(
                 *item,
-                "PUBLIC" | "PRIVATE" | "INTERFACE" | "debug" | "optimized" | "general"
+                "PUBLIC"
+                    | "PRIVATE"
+                    | "INTERFACE"
+                    | "debug"
+                    | "optimized"
+                    | "general"
+                    | "LINK_PUBLIC"
+                    | "LINK_PRIVATE"
+                    | "LINK_INTERFACE_LIBRARIES"
             )
         })
         .map(|item| item.trim().to_string())
