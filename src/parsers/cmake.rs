@@ -27,21 +27,21 @@ pub fn parse_cmake_lists(path: &str) -> Result<CMakeInfo> {
         });
     }
 
-    let re_exe = Regex::new(r"add_executable\s*\(\s*([A-Za-z0-9_:+-]+)").unwrap();
+    let re_exe = Regex::new(r"add_executable\s*\(\s*([^\s\)]+)").unwrap();
     for cap in re_exe.captures_iter(&text) {
         if let Some(name) = cap.get(1) {
             info.executables.push(name.as_str().to_string());
         }
     }
 
-    let re_lib = Regex::new(r"add_library\s*\(\s*([A-Za-z0-9_:+-]+)(?:\s+(?:STATIC|SHARED|MODULE|OBJECT|INTERFACE))?").unwrap();
+    let re_lib = Regex::new(r"add_library\s*\(\s*([^\s\)]+)(?:\s+(?:STATIC|SHARED|MODULE|OBJECT|INTERFACE))?").unwrap();
     for cap in re_lib.captures_iter(&text) {
         if let Some(name) = cap.get(1) {
             info.libraries.push(name.as_str().to_string());
         }
     }
 
-    let re_ament_deps = Regex::new(r"ament_target_dependencies\s*\(\s*([A-Za-z0-9_:+-]+)\s+([^\)]*)\)").unwrap();
+    let re_ament_deps = Regex::new(r"ament_target_dependencies\s*\(\s*([^\s\)]+)\s+([^\)]*)\)").unwrap();
     for cap in re_ament_deps.captures_iter(&text) {
         let target = cap.get(1).map(|m| m.as_str().to_string()).unwrap_or_default();
         let dependencies = cap
@@ -51,12 +51,12 @@ pub fn parse_cmake_lists(path: &str) -> Result<CMakeInfo> {
         info.ament_target_dependencies.push(TargetDependencies { target, dependencies });
     }
 
-    let re_target_links = Regex::new(r"target_link_libraries\s*\(\s*([A-Za-z0-9_:+-]+)\s+([^\)]*)\)").unwrap();
+    let re_target_links = Regex::new(r"target_link_libraries\s*\(\s*([^\s\)]+)\s+([^\)]*)\)").unwrap();
     for cap in re_target_links.captures_iter(&text) {
         let target = cap.get(1).map(|m| m.as_str().to_string()).unwrap_or_default();
         let libraries = cap
             .get(2)
-            .map(|m| split_cmake_args(m.as_str()))
+            .map(|m| split_link_libraries_args(m.as_str()))
             .unwrap_or_default();
         info.target_link_libraries.push(TargetLinks { target, libraries });
     }
@@ -74,6 +74,19 @@ pub fn parse_cmake_lists(path: &str) -> Result<CMakeInfo> {
 fn split_cmake_args(s: &str) -> Vec<String> {
     s.split_whitespace()
         .filter(|item| !item.is_empty())
+        .map(|item| item.trim().to_string())
+        .collect()
+}
+
+fn split_link_libraries_args(s: &str) -> Vec<String> {
+    s.split_whitespace()
+        .filter(|item| !item.is_empty())
+        .filter(|item| {
+            !matches!(
+                *item,
+                "PUBLIC" | "PRIVATE" | "INTERFACE" | "debug" | "optimized" | "general"
+            )
+        })
         .map(|item| item.trim().to_string())
         .collect()
 }
