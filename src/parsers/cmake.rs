@@ -5,12 +5,13 @@ use std::fs;
 
 pub fn parse_cmake_lists(path: &str) -> Result<CMakeInfo> {
     let text = fs::read_to_string(path)?;
+    let uncommented_text = strip_cmake_line_comments(&text);
     let mut info = CMakeInfo::default();
 
     let re_find =
-        Regex::new(r"(?i)find_package\s*\(\s*([A-Za-z0-9_:+-]+)(?:\s+([0-9\.]+))?(?:.*REQUIRED)?\)")
+        Regex::new(r"(?i)find_package\s*\(\s*([A-Za-z0-9_:+-]+)(?:\s+([0-9\.]+))?(?:.*required)?\)")
             .unwrap();
-    for cap in re_find.captures_iter(&text) {
+    for cap in re_find.captures_iter(&uncommented_text) {
         let name = cap
             .get(1)
             .map(|m| m.as_str().to_string())
@@ -18,7 +19,7 @@ pub fn parse_cmake_lists(path: &str) -> Result<CMakeInfo> {
         let version = cap.get(2).map(|m| m.as_str().to_string());
         let required = cap
             .get(0)
-            .map(|m| m.as_str().contains("REQUIRED"))
+            .map(|m| m.as_str().to_ascii_lowercase().contains("required"))
             .unwrap_or(false);
         info.find_packages.push(FindPackage {
             name,
@@ -28,21 +29,21 @@ pub fn parse_cmake_lists(path: &str) -> Result<CMakeInfo> {
     }
 
     let re_exe = Regex::new(r"(?i)add_executable\s*\(\s*([^\s\)]+)").unwrap();
-    for cap in re_exe.captures_iter(&text) {
+    for cap in re_exe.captures_iter(&uncommented_text) {
         if let Some(name) = cap.get(1) {
             info.executables.push(name.as_str().to_string());
         }
     }
 
     let re_lib = Regex::new(r"(?i)add_library\s*\(\s*([^\s\)]+)(?:\s+(?:STATIC|SHARED|MODULE|OBJECT|INTERFACE))?").unwrap();
-    for cap in re_lib.captures_iter(&text) {
+    for cap in re_lib.captures_iter(&uncommented_text) {
         if let Some(name) = cap.get(1) {
             info.libraries.push(name.as_str().to_string());
         }
     }
 
     let re_ament_deps = Regex::new(r"(?i)ament_target_dependencies\s*\(\s*([^\s\)]+)\s+([^\)]*)\)").unwrap();
-    for cap in re_ament_deps.captures_iter(&text) {
+    for cap in re_ament_deps.captures_iter(&uncommented_text) {
         let target = cap.get(1).map(|m| m.as_str().to_string()).unwrap_or_default();
         let dependencies = cap
             .get(2)
@@ -52,7 +53,7 @@ pub fn parse_cmake_lists(path: &str) -> Result<CMakeInfo> {
     }
 
     let re_target_links = Regex::new(r"(?i)target_link_libraries\s*\(\s*([^\s\)]+)\s+([^\)]*)\)").unwrap();
-    for cap in re_target_links.captures_iter(&text) {
+    for cap in re_target_links.captures_iter(&uncommented_text) {
         let target = cap.get(1).map(|m| m.as_str().to_string()).unwrap_or_default();
         let libraries = cap
             .get(2)
@@ -61,10 +62,10 @@ pub fn parse_cmake_lists(path: &str) -> Result<CMakeInfo> {
         info.target_link_libraries.push(TargetLinks { target, libraries });
     }
 
-    if text.contains("catkin_package") {
+    if uncommented_text.to_ascii_lowercase().contains("catkin_package") {
         info.has_catkin_package = true;
     }
-    if text.contains("ament_package") {
+    if uncommented_text.to_ascii_lowercase().contains("ament_package") {
         info.has_ament_package = true;
     }
 
@@ -83,7 +84,10 @@ fn split_ament_target_dependencies_args(s: &str) -> Vec<String> {
     cleaned
         .split_whitespace()
         .filter(|item| !item.is_empty())
-        .filter(|item| !matches!(*item, "SYSTEM" | "PUBLIC" | "INTERFACE"))
+        .filter(|item| {
+            let upper = item.to_ascii_uppercase();
+            !matches!(upper.as_str(), "SYSTEM" | "PUBLIC" | "INTERFACE")
+        })
         .map(|item| item.trim().to_string())
         .collect()
 }
@@ -94,14 +98,15 @@ fn split_link_libraries_args(s: &str) -> Vec<String> {
         .split_whitespace()
         .filter(|item| !item.is_empty())
         .filter(|item| {
+            let upper = item.to_ascii_uppercase();
             !matches!(
-                *item,
+                upper.as_str(),
                 "PUBLIC"
                     | "PRIVATE"
                     | "INTERFACE"
-                    | "debug"
-                    | "optimized"
-                    | "general"
+                    | "DEBUG"
+                    | "OPTIMIZED"
+                    | "GENERAL"
                     | "LINK_PUBLIC"
                     | "LINK_PRIVATE"
                     | "LINK_INTERFACE_LIBRARIES"
