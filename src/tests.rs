@@ -256,6 +256,7 @@ target_link_libraries(${PROJECT_NAME}_node ${PROJECT_NAME}_core foo::bar)
         write(
             &cmake_path,
             r#"FIND_PACKAGE(rclcpp required)
+FIND_PACKAGE(std_msgs REQUIRED)
 ADD_EXECUTABLE(MY_NODE src/my_node.cpp)
 ADD_LIBRARY(MY_LIB SHARED src/my_lib.cpp)
 AMENT_TARGET_DEPENDENCIES(MY_NODE rclcpp std_msgs)
@@ -266,6 +267,8 @@ TARGET_LINK_LIBRARIES(MY_NODE public MY_LIB foo::bar)"#,
         let info = parse_cmake_lists(cmake_path.to_str().unwrap()).expect("parse cmake");
 
         assert!(info.find_packages.iter().any(|pkg| pkg.name == "rclcpp" && pkg.required));
+        assert!(info.find_packages.iter().any(|pkg| pkg.name == "std_msgs" && pkg.required));
+        assert_eq!(info.find_packages.len(), 2);
         assert!(info.executables.iter().any(|t| t == "MY_NODE"));
         assert!(info.libraries.iter().any(|t| t == "MY_LIB"));
         assert!(info.ament_target_dependencies.iter().any(|entry| {
