@@ -8,9 +8,10 @@ pub fn parse_cmake_lists(path: &str) -> Result<CMakeInfo> {
     let uncommented_text = strip_cmake_line_comments(&text);
     let mut info = CMakeInfo::default();
 
-    let re_find =
-        Regex::new(r"(?i)find_package\s*\(\s*([A-Za-z0-9_:+-]+)(?:\s+([0-9\.]+))?(?:.*required)?\)")
-            .unwrap();
+    let re_find = Regex::new(
+        r"(?i)find_package\s*\(\s*([A-Za-z0-9_:+-]+)(?:\s+([0-9\.]+))?([^\)]*)\)"
+    )
+    .unwrap();
     for cap in re_find.captures_iter(&uncommented_text) {
         let name = cap
             .get(1)
@@ -18,7 +19,7 @@ pub fn parse_cmake_lists(path: &str) -> Result<CMakeInfo> {
             .unwrap_or_default();
         let version = cap.get(2).map(|m| m.as_str().to_string());
         let required = cap
-            .get(0)
+            .get(3)
             .map(|m| m.as_str().to_ascii_lowercase().contains("required"))
             .unwrap_or(false);
         info.find_packages.push(FindPackage {
