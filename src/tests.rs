@@ -167,6 +167,54 @@ ament_package()
     }
 
     #[test]
+    fn parse_cmake_lists_supports_variable_target_names() {
+        let td = tempdir().expect("tempdir");
+        let cmake_path = td.path().join("CMakeLists.txt");
+        write(
+            &cmake_path,
+            r#"cmake_minimum_required(VERSION 3.8)
+project(sample_pkg)
+
+add_executable(${PROJECT_NAME}_node src/my_node.cpp)
+ament_target_dependencies(${PROJECT_NAME}_node rclcpp std_msgs)
+target_link_libraries(${PROJECT_NAME}_node ${PROJECT_NAME}_core foo::bar)
+"#,
+        )
+        .expect("write CMakeLists.txt");
+
+        let info = parse_cmake_lists(cmake_path.to_str().unwrap()).expect("parse cmake");
+
+        assert!(info.executables.iter().any(|t| t == "${PROJECT_NAME}_node"));
+        assert!(info.ament_target_dependencies.iter().any(|entry| {
+            entry.target == "${PROJECT_NAME}_node"
+                && entry.dependencies == vec!["rclcpp", "std_msgs"]
+        }));
+        assert!(info.target_link_libraries.iter().any(|entry| {
+            entry.target == "${PROJECT_NAME}_node"
+                && entry.libraries == vec!["${PROJECT_NAME}_core", "foo::bar"]
+        }));
+    }
+
+    #[test]
+    fn parse_cmake_lists_ignores_link_visibility_keywords() {
+        let td = tempdir().expect("tempdir");
+        let cmake_path = td.path().join("CMakeLists.txt");
+        write(
+            &cmake_path,
+            r#"target_link_libraries(my_node PUBLIC my_lib PRIVATE foo::bar INTERFACE baz::qux optimized optlib debug dbgllib general genlib)"#,
+        )
+        .expect("write CMakeLists.txt");
+
+        let info = parse_cmake_lists(cmake_path.to_str().unwrap()).expect("parse cmake");
+
+        assert!(info.target_link_libraries.iter().any(|entry| {
+            entry.target == "my_node"
+                && entry.libraries
+                    == vec!["my_lib", "foo::bar", "baz::qux", "optlib", "dbgllib", "genlib"]
+        }));
+    }
+
+    #[test]
     fn analyze_command_writes_json_report() {
         let td = tempdir().expect("tempdir");
         let base = td.path();
