@@ -7,6 +7,7 @@ mod cli_tests {
     use crate::analyzer::analyze;
     use crate::commands;
     use crate::models::AnalysisReport;
+    use crate::parsers::cmake::parse_cmake_lists;
     use crate::parsers::package::parse_package_xml;
     use crate::plugins::loader::load_rules_from_path;
     use crate::scanner::scan_workspace;
@@ -130,6 +131,39 @@ suggestion = "#include <rclcpp/rclcpp.hpp>"
 
         let pkg = parse_package_xml(pkg_path.to_str().unwrap()).expect("parse package.xml");
         assert_eq!(pkg.build_type.as_deref(), Some("ament_cmake"));
+    }
+
+    #[test]
+    fn parse_cmake_lists_extracts_targets_and_dependencies() {
+        let td = tempdir().expect("tempdir");
+        let cmake_path = td.path().join("CMakeLists.txt");
+        write(
+            &cmake_path,
+            r#"cmake_minimum_required(VERSION 3.8)
+project(sample_pkg)
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(std_msgs REQUIRED)
+
+add_executable(my_node src/my_node.cpp)
+add_library(my_lib SHARED src/my_lib.cpp)
+ament_target_dependencies(my_node rclcpp std_msgs)
+target_link_libraries(my_node my_lib foo::bar)
+ament_package()
+"#,
+        )
+        .expect("write CMakeLists.txt");
+
+        let info = parse_cmake_lists(cmake_path.to_str().unwrap()).expect("parse cmake");
+
+        assert!(info.executables.iter().any(|t| t == "my_node"));
+        assert!(info.libraries.iter().any(|t| t == "my_lib"));
+        assert!(info.ament_target_dependencies.iter().any(|entry| {
+            entry.target == "my_node" && entry.dependencies == vec!["rclcpp", "std_msgs"]
+        }));
+        assert!(info.target_link_libraries.iter().any(|entry| {
+            entry.target == "my_node" && entry.libraries == vec!["my_lib", "foo::bar"]
+        }));
     }
 
     #[test]
