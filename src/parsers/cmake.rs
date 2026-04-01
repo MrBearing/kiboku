@@ -71,13 +71,6 @@ pub fn parse_cmake_lists(path: &str) -> Result<CMakeInfo> {
     Ok(info)
 }
 
-fn split_cmake_args(s: &str) -> Vec<String> {
-    s.split_whitespace()
-        .filter(|item| !item.is_empty())
-        .map(|item| item.trim().to_string())
-        .collect()
-}
-
 fn split_ament_target_dependencies_args(s: &str) -> Vec<String> {
     s.split_whitespace()
         .filter(|item| !item.is_empty())
