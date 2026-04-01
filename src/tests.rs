@@ -215,6 +215,41 @@ target_link_libraries(${PROJECT_NAME}_node ${PROJECT_NAME}_core foo::bar)
     }
 
     #[test]
+    fn parse_cmake_lists_ignores_ament_dependency_keywords() {
+        let td = tempdir().expect("tempdir");
+        let cmake_path = td.path().join("CMakeLists.txt");
+        write(
+            &cmake_path,
+            r#"ament_target_dependencies(my_node SYSTEM PUBLIC INTERFACE rclcpp std_msgs)"#,
+        )
+        .expect("write CMakeLists.txt");
+
+        let info = parse_cmake_lists(cmake_path.to_str().unwrap()).expect("parse cmake");
+
+        assert!(info.ament_target_dependencies.iter().any(|entry| {
+            entry.target == "my_node" && entry.dependencies == vec!["rclcpp", "std_msgs"]
+        }));
+    }
+
+    #[test]
+    fn parse_cmake_lists_ignores_legacy_link_keywords() {
+        let td = tempdir().expect("tempdir");
+        let cmake_path = td.path().join("CMakeLists.txt");
+        write(
+            &cmake_path,
+            r#"target_link_libraries(my_node LINK_PUBLIC my_lib LINK_PRIVATE foo::bar LINK_INTERFACE_LIBRARIES baz::qux)"#,
+        )
+        .expect("write CMakeLists.txt");
+
+        let info = parse_cmake_lists(cmake_path.to_str().unwrap()).expect("parse cmake");
+
+        assert!(info.target_link_libraries.iter().any(|entry| {
+            entry.target == "my_node"
+                && entry.libraries == vec!["my_lib", "foo::bar", "baz::qux"]
+        }));
+    }
+
+    #[test]
     fn analyze_command_writes_json_report() {
         let td = tempdir().expect("tempdir");
         let base = td.path();
