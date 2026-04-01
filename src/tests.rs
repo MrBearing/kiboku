@@ -250,6 +250,54 @@ target_link_libraries(${PROJECT_NAME}_node ${PROJECT_NAME}_core foo::bar)
     }
 
     #[test]
+    fn parse_cmake_lists_supports_uppercase_commands() {
+        let td = tempdir().expect("tempdir");
+        let cmake_path = td.path().join("CMakeLists.txt");
+        write(
+            &cmake_path,
+            r#"ADD_EXECUTABLE(MY_NODE src/my_node.cpp)
+ADD_LIBRARY(MY_LIB SHARED src/my_lib.cpp)
+AMENT_TARGET_DEPENDENCIES(MY_NODE rclcpp std_msgs)
+TARGET_LINK_LIBRARIES(MY_NODE PUBLIC MY_LIB foo::bar)"#,
+        )
+        .expect("write CMakeLists.txt");
+
+        let info = parse_cmake_lists(cmake_path.to_str().unwrap()).expect("parse cmake");
+
+        assert!(info.executables.iter().any(|t| t == "MY_NODE"));
+        assert!(info.libraries.iter().any(|t| t == "MY_LIB"));
+        assert!(info.ament_target_dependencies.iter().any(|entry| {
+            entry.target == "MY_NODE" && entry.dependencies == vec!["rclcpp", "std_msgs"]
+        }));
+        assert!(info.target_link_libraries.iter().any(|entry| {
+            entry.target == "MY_NODE" && entry.libraries == vec!["MY_LIB", "foo::bar"]
+        }));
+    }
+
+    #[test]
+    fn parse_cmake_lists_strips_line_comments_from_args() {
+        let td = tempdir().expect("tempdir");
+        let cmake_path = td.path().join("CMakeLists.txt");
+        write(
+            &cmake_path,
+            r#"ament_target_dependencies(my_node rclcpp # core ros client
+  std_msgs)
+target_link_libraries(my_node my_lib # internal lib
+  foo::bar)"#,
+        )
+        .expect("write CMakeLists.txt");
+
+        let info = parse_cmake_lists(cmake_path.to_str().unwrap()).expect("parse cmake");
+
+        assert!(info.ament_target_dependencies.iter().any(|entry| {
+            entry.target == "my_node" && entry.dependencies == vec!["rclcpp", "std_msgs"]
+        }));
+        assert!(info.target_link_libraries.iter().any(|entry| {
+            entry.target == "my_node" && entry.libraries == vec!["my_lib", "foo::bar"]
+        }));
+    }
+
+    #[test]
     fn analyze_command_writes_json_report() {
         let td = tempdir().expect("tempdir");
         let base = td.path();
