@@ -1,4 +1,4 @@
-use crate::models::cmake::{CMakeInfo, FindPackage};
+use crate::models::cmake::{CMakeInfo, FindPackage, TargetDependencies, TargetLinks};
 use anyhow::Result;
 use regex::Regex;
 use std::fs;
@@ -27,6 +27,40 @@ pub fn parse_cmake_lists(path: &str) -> Result<CMakeInfo> {
         });
     }
 
+    let re_exe = Regex::new(r"add_executable\s*\(\s*([A-Za-z0-9_:+-]+)").unwrap();
+    for cap in re_exe.captures_iter(&text) {
+        if let Some(name) = cap.get(1) {
+            info.executables.push(name.as_str().to_string());
+        }
+    }
+
+    let re_lib = Regex::new(r"add_library\s*\(\s*([A-Za-z0-9_:+-]+)(?:\s+(?:STATIC|SHARED|MODULE|OBJECT|INTERFACE))?").unwrap();
+    for cap in re_lib.captures_iter(&text) {
+        if let Some(name) = cap.get(1) {
+            info.libraries.push(name.as_str().to_string());
+        }
+    }
+
+    let re_ament_deps = Regex::new(r"ament_target_dependencies\s*\(\s*([A-Za-z0-9_:+-]+)\s+([^\)]*)\)").unwrap();
+    for cap in re_ament_deps.captures_iter(&text) {
+        let target = cap.get(1).map(|m| m.as_str().to_string()).unwrap_or_default();
+        let dependencies = cap
+            .get(2)
+            .map(|m| split_cmake_args(m.as_str()))
+            .unwrap_or_default();
+        info.ament_target_dependencies.push(TargetDependencies { target, dependencies });
+    }
+
+    let re_target_links = Regex::new(r"target_link_libraries\s*\(\s*([A-Za-z0-9_:+-]+)\s+([^\)]*)\)").unwrap();
+    for cap in re_target_links.captures_iter(&text) {
+        let target = cap.get(1).map(|m| m.as_str().to_string()).unwrap_or_default();
+        let libraries = cap
+            .get(2)
+            .map(|m| split_cmake_args(m.as_str()))
+            .unwrap_or_default();
+        info.target_link_libraries.push(TargetLinks { target, libraries });
+    }
+
     if text.contains("catkin_package") {
         info.has_catkin_package = true;
     }
@@ -35,4 +69,11 @@ pub fn parse_cmake_lists(path: &str) -> Result<CMakeInfo> {
     }
 
     Ok(info)
+}
+
+fn split_cmake_args(s: &str) -> Vec<String> {
+    s.split_whitespace()
+        .filter(|item| !item.is_empty())
+        .map(|item| item.trim().to_string())
+        .collect()
 }
