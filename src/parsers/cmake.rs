@@ -1,125 +1,261 @@
 use crate::models::cmake::{CMakeInfo, FindPackage, TargetDependencies, TargetLinks};
 use anyhow::Result;
-use regex::Regex;
 use std::fs;
+
+#[derive(Debug, Clone)]
+struct CMakeCommand {
+    name: String,
+    args_raw: String,
+}
 
 pub fn parse_cmake_lists(path: &str) -> Result<CMakeInfo> {
     let text = fs::read_to_string(path)?;
-    let uncommented_text = strip_cmake_line_comments(&text);
+    let commands = extract_cmake_commands(&text);
     let mut info = CMakeInfo::default();
 
-    let re_find = Regex::new(
-        r"(?i)find_package\s*\(\s*([A-Za-z0-9_:+-]+)(?:\s+([0-9\.]+))?([^\)]*)\)"
-    )
-    .unwrap();
-    for cap in re_find.captures_iter(&uncommented_text) {
-        let name = cap
-            .get(1)
-            .map(|m| m.as_str().to_string())
-            .unwrap_or_default();
-        let version = cap.get(2).map(|m| m.as_str().to_string());
-        let required = cap
-            .get(3)
-            .map(|m| has_required_token(m.as_str()))
-            .unwrap_or(false);
-        info.find_packages.push(FindPackage {
-            name,
-            version,
-            required,
-        });
-    }
-
-    let re_exe = Regex::new(r"(?i)add_executable\s*\(\s*([^\s\)]+)").unwrap();
-    for cap in re_exe.captures_iter(&uncommented_text) {
-        if let Some(name) = cap.get(1) {
-            info.executables.push(name.as_str().to_string());
+    for cmd in &commands {
+        match cmd.name.as_str() {
+            "find_package" => {
+                let tokens = tokenize_cmake_args(&cmd.args_raw);
+                if tokens.is_empty() {
+                    continue;
+                }
+                let name = tokens[0].clone();
+                let version = tokens
+                    .get(1)
+                    .filter(|t| t.chars().all(|c| c.is_ascii_digit() || c == '.'))
+                    .cloned();
+                let required = tokens.iter().any(|t| t.eq_ignore_ascii_case("REQUIRED"));
+                info.find_packages.push(FindPackage {
+                    name,
+                    version,
+                    required,
+                });
+            }
+            "add_executable" => {
+                let tokens = tokenize_cmake_args(&cmd.args_raw);
+                if let Some(target) = tokens.first() {
+                    info.executables.push(target.clone());
+                }
+            }
+            "add_library" => {
+                let tokens = tokenize_cmake_args(&cmd.args_raw);
+                if let Some(target) = tokens.first() {
+                    info.libraries.push(target.clone());
+                }
+            }
+            "ament_target_dependencies" => {
+                let tokens = tokenize_cmake_args(&cmd.args_raw);
+                if let Some((target, rest)) = tokens.split_first() {
+                    let dependencies = rest
+                        .iter()
+                        .filter(|item| {
+                            !matches!(
+                                item.to_ascii_uppercase().as_str(),
+                                "SYSTEM" | "PUBLIC" | "INTERFACE"
+                            )
+                        })
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    info.ament_target_dependencies.push(TargetDependencies {
+                        target: target.clone(),
+                        dependencies,
+                    });
+                }
+            }
+            "target_link_libraries" => {
+                let tokens = tokenize_cmake_args(&cmd.args_raw);
+                if let Some((target, rest)) = tokens.split_first() {
+                    let libraries = rest
+                        .iter()
+                        .filter(|item| {
+                            !matches!(
+                                item.to_ascii_uppercase().as_str(),
+                                "PUBLIC"
+                                    | "PRIVATE"
+                                    | "INTERFACE"
+                                    | "DEBUG"
+                                    | "OPTIMIZED"
+                                    | "GENERAL"
+                                    | "LINK_PUBLIC"
+                                    | "LINK_PRIVATE"
+                                    | "LINK_INTERFACE_LIBRARIES"
+                            )
+                        })
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    info.target_link_libraries.push(TargetLinks {
+                        target: target.clone(),
+                        libraries,
+                    });
+                }
+            }
+            "catkin_package" => {
+                info.has_catkin_package = true;
+            }
+            "ament_package" => {
+                info.has_ament_package = true;
+            }
+            _ => {}
         }
-    }
-
-    let re_lib = Regex::new(r"(?i)add_library\s*\(\s*([^\s\)]+)(?:\s+(?:STATIC|SHARED|MODULE|OBJECT|INTERFACE))?").unwrap();
-    for cap in re_lib.captures_iter(&uncommented_text) {
-        if let Some(name) = cap.get(1) {
-            info.libraries.push(name.as_str().to_string());
-        }
-    }
-
-    let re_ament_deps = Regex::new(r"(?i)ament_target_dependencies\s*\(\s*([^\s\)]+)\s+([^\)]*)\)").unwrap();
-    for cap in re_ament_deps.captures_iter(&uncommented_text) {
-        let target = cap.get(1).map(|m| m.as_str().to_string()).unwrap_or_default();
-        let dependencies = cap
-            .get(2)
-            .map(|m| split_ament_target_dependencies_args(m.as_str()))
-            .unwrap_or_default();
-        info.ament_target_dependencies.push(TargetDependencies { target, dependencies });
-    }
-
-    let re_target_links = Regex::new(r"(?i)target_link_libraries\s*\(\s*([^\s\)]+)\s+([^\)]*)\)").unwrap();
-    for cap in re_target_links.captures_iter(&uncommented_text) {
-        let target = cap.get(1).map(|m| m.as_str().to_string()).unwrap_or_default();
-        let libraries = cap
-            .get(2)
-            .map(|m| split_link_libraries_args(m.as_str()))
-            .unwrap_or_default();
-        info.target_link_libraries.push(TargetLinks { target, libraries });
-    }
-
-    let re_catkin_package = Regex::new(r"(?i)\bcatkin_package\s*\(").unwrap();
-    if re_catkin_package.is_match(&uncommented_text) {
-        info.has_catkin_package = true;
-    }
-    let re_ament_package = Regex::new(r"(?i)\bament_package\s*\(").unwrap();
-    if re_ament_package.is_match(&uncommented_text) {
-        info.has_ament_package = true;
     }
 
     Ok(info)
 }
 
-fn strip_cmake_line_comments(s: &str) -> String {
-    s.lines()
-        .map(|line| line.split('#').next().unwrap_or_default())
-        .collect::<Vec<_>>()
-        .join(" ")
+fn extract_cmake_commands(s: &str) -> Vec<CMakeCommand> {
+    let mut commands = Vec::new();
+    let chars: Vec<char> = s.chars().collect();
+    let mut i = 0usize;
+
+    while i < chars.len() {
+        if chars[i] == '#' {
+            while i < chars.len() && chars[i] != '\n' {
+                i += 1;
+            }
+            continue;
+        }
+
+        if chars[i].is_ascii_alphabetic() || chars[i] == '_' {
+            let start = i;
+            i += 1;
+            while i < chars.len() && (chars[i].is_ascii_alphanumeric() || chars[i] == '_') {
+                i += 1;
+            }
+            let name: String = chars[start..i].iter().collect();
+
+            let mut j = i;
+            while j < chars.len() && chars[j].is_whitespace() {
+                j += 1;
+            }
+            if j >= chars.len() || chars[j] != '(' {
+                i = j;
+                continue;
+            }
+
+            j += 1;
+            let args_start = j;
+            let mut depth = 1i32;
+            let mut in_single = false;
+            let mut in_double = false;
+            let mut escaped = false;
+
+            while j < chars.len() {
+                let c = chars[j];
+                if escaped {
+                    escaped = false;
+                    j += 1;
+                    continue;
+                }
+                if c == '\\' && (in_single || in_double) {
+                    escaped = true;
+                    j += 1;
+                    continue;
+                }
+                if c == '"' && !in_single {
+                    in_double = !in_double;
+                    j += 1;
+                    continue;
+                }
+                if c == '\'' && !in_double {
+                    in_single = !in_single;
+                    j += 1;
+                    continue;
+                }
+                if in_single || in_double {
+                    j += 1;
+                    continue;
+                }
+                if c == '#' {
+                    while j < chars.len() && chars[j] != '\n' {
+                        j += 1;
+                    }
+                    continue;
+                }
+                if c == '(' {
+                    depth += 1;
+                } else if c == ')' {
+                    depth -= 1;
+                    if depth == 0 {
+                        let args_raw: String = chars[args_start..j].iter().collect();
+                        commands.push(CMakeCommand {
+                            name: name.to_ascii_lowercase(),
+                            args_raw,
+                        });
+                        j += 1;
+                        break;
+                    }
+                }
+                j += 1;
+            }
+            i = j;
+            continue;
+        }
+
+        i += 1;
+    }
+
+    commands
 }
 
-fn has_required_token(s: &str) -> bool {
-    s.split_whitespace()
-        .any(|item| item.eq_ignore_ascii_case("REQUIRED"))
-}
+fn tokenize_cmake_args(s: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let mut current = String::new();
+    let chars: Vec<char> = s.chars().collect();
+    let mut i = 0usize;
+    let mut in_single = false;
+    let mut in_double = false;
+    let mut escaped = false;
 
-fn split_ament_target_dependencies_args(s: &str) -> Vec<String> {
-    let cleaned = strip_cmake_line_comments(s);
-    cleaned
-        .split_whitespace()
-        .filter(|item| !item.is_empty())
-        .filter(|item| {
-            let upper = item.to_ascii_uppercase();
-            !matches!(upper.as_str(), "SYSTEM" | "PUBLIC" | "INTERFACE")
-        })
-        .map(|item| item.trim().to_string())
-        .collect()
-}
+    while i < chars.len() {
+        let c = chars[i];
+        if escaped {
+            current.push(c);
+            escaped = false;
+            i += 1;
+            continue;
+        }
+        if c == '\\' && (in_single || in_double) {
+            escaped = true;
+            i += 1;
+            continue;
+        }
+        if c == '"' && !in_single {
+            in_double = !in_double;
+            i += 1;
+            continue;
+        }
+        if c == '\'' && !in_double {
+            in_single = !in_single;
+            i += 1;
+            continue;
+        }
+        if (in_single || in_double) && c == '#' {
+            current.push(c);
+            i += 1;
+            continue;
+        }
+        if !in_single && !in_double && c.is_whitespace() {
+            if !current.is_empty() {
+                tokens.push(current.clone());
+                current.clear();
+            }
+            i += 1;
+            continue;
+        }
+        if !in_single && !in_double && c == '#' {
+            while i < chars.len() && chars[i] != '\n' {
+                i += 1;
+            }
+            continue;
+        }
+        current.push(c);
+        i += 1;
+    }
 
-fn split_link_libraries_args(s: &str) -> Vec<String> {
-    let cleaned = strip_cmake_line_comments(s);
-    cleaned
-        .split_whitespace()
-        .filter(|item| !item.is_empty())
-        .filter(|item| {
-            let upper = item.to_ascii_uppercase();
-            !matches!(
-                upper.as_str(),
-                "PUBLIC"
-                    | "PRIVATE"
-                    | "INTERFACE"
-                    | "DEBUG"
-                    | "OPTIMIZED"
-                    | "GENERAL"
-                    | "LINK_PUBLIC"
-                    | "LINK_PRIVATE"
-                    | "LINK_INTERFACE_LIBRARIES"
-            )
-        })
-        .map(|item| item.trim().to_string())
-        .collect()
+    if !current.is_empty() {
+        tokens.push(current);
+    }
+
+    tokens
 }
