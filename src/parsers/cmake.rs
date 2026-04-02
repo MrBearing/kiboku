@@ -20,7 +20,7 @@ pub fn parse_cmake_lists(path: &str) -> Result<CMakeInfo> {
         let version = cap.get(2).map(|m| m.as_str().to_string());
         let required = cap
             .get(3)
-            .map(|m| m.as_str().to_ascii_lowercase().contains("required"))
+            .map(|m| has_required_token(m.as_str()))
             .unwrap_or(false);
         info.find_packages.push(FindPackage {
             name,
@@ -80,6 +80,11 @@ fn strip_cmake_line_comments(s: &str) -> String {
         .map(|line| line.split('#').next().unwrap_or_default())
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+fn has_required_token(s: &str) -> bool {
+    s.split_whitespace()
+        .any(|item| item.eq_ignore_ascii_case("REQUIRED"))
 }
 
 fn split_ament_target_dependencies_args(s: &str) -> Vec<String> {
