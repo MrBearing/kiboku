@@ -312,7 +312,9 @@ target_link_libraries(my_node my_lib # internal lib
 # ADD_LIBRARY(OLD_LIB SHARED src/old.cpp)
 add_executable(real_node src/real.cpp)
 # target_link_libraries(old_node old_lib)
-target_link_libraries(real_node real_lib)"#,
+target_link_libraries(real_node real_lib)
+# catkin_package()
+# ament_package()"#,
         )
         .expect("write CMakeLists.txt");
 
@@ -320,10 +322,29 @@ target_link_libraries(real_node real_lib)"#,
 
         assert_eq!(info.executables, vec!["real_node"]);
         assert!(info.libraries.is_empty());
+        assert!(!info.has_catkin_package);
+        assert!(!info.has_ament_package);
         assert!(info.target_link_libraries.iter().any(|entry| {
             entry.target == "real_node" && entry.libraries == vec!["real_lib"]
         }));
         assert!(!info.target_link_libraries.iter().any(|entry| entry.target == "old_node"));
+    }
+
+    #[test]
+    fn parse_cmake_lists_detects_package_commands_case_insensitively() {
+        let td = tempdir().expect("tempdir");
+        let cmake_path = td.path().join("CMakeLists.txt");
+        write(
+            &cmake_path,
+            r#"CATKIN_PACKAGE()
+AMENT_PACKAGE()"#,
+        )
+        .expect("write CMakeLists.txt");
+
+        let info = parse_cmake_lists(cmake_path.to_str().unwrap()).expect("parse cmake");
+
+        assert!(info.has_catkin_package);
+        assert!(info.has_ament_package);
     }
 
     #[test]
