@@ -63,10 +63,12 @@ pub fn parse_cmake_lists(path: &str) -> Result<CMakeInfo> {
         info.target_link_libraries.push(TargetLinks { target, libraries });
     }
 
-    if uncommented_text.to_ascii_lowercase().contains("catkin_package") {
+    let re_catkin_package = Regex::new(r"(?i)\bcatkin_package\s*\(").unwrap();
+    if re_catkin_package.is_match(&uncommented_text) {
         info.has_catkin_package = true;
     }
-    if uncommented_text.to_ascii_lowercase().contains("ament_package") {
+    let re_ament_package = Regex::new(r"(?i)\bament_package\s*\(").unwrap();
+    if re_ament_package.is_match(&uncommented_text) {
         info.has_ament_package = true;
     }
 
