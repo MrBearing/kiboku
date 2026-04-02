@@ -350,6 +350,25 @@ AMENT_PACKAGE()"#,
     }
 
     #[test]
+    fn parse_cmake_lists_does_not_match_wrapper_macro_names() {
+        let td = tempdir().expect("tempdir");
+        let cmake_path = td.path().join("CMakeLists.txt");
+        write(
+            &cmake_path,
+            r#"foo_add_executable(fake_node src/fake.cpp)
+my_target_link_libraries(fake_node fake_lib)
+real_add_library(fake_lib src/fake.cpp)"#,
+        )
+        .expect("write CMakeLists.txt");
+
+        let info = parse_cmake_lists(cmake_path.to_str().unwrap()).expect("parse cmake");
+
+        assert!(info.executables.is_empty());
+        assert!(info.libraries.is_empty());
+        assert!(info.target_link_libraries.is_empty());
+    }
+
+    #[test]
     fn analyze_command_writes_json_report() {
         let td = tempdir().expect("tempdir");
         let base = td.path();
