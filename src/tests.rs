@@ -350,6 +350,46 @@ AMENT_PACKAGE()"#,
     }
 
     #[test]
+    fn parse_cmake_lists_ignores_bracket_commented_ros_commands() {
+        let td = tempdir().expect("tempdir");
+        let cmake_path = td.path().join("CMakeLists.txt");
+        write(
+            &cmake_path,
+            r#"find_package(rclcpp REQUIRED)
+#[[
+find_package(fake_pkg REQUIRED)
+ament_target_dependencies(fake_node fake_dep)
+target_link_libraries(fake_node fake_lib)
+ament_package()
+]]
+add_executable(real_node src/real.cpp)
+ament_target_dependencies(real_node rclcpp)
+target_link_libraries(real_node real_lib)"#,
+        )
+        .expect("write CMakeLists.txt");
+
+        let info = parse_cmake_lists(cmake_path.to_str().unwrap()).expect("parse cmake");
+
+        assert!(info.find_packages.iter().any(|pkg| pkg.name == "rclcpp" && pkg.required));
+        assert!(!info.find_packages.iter().any(|pkg| pkg.name == "fake_pkg"));
+        assert!(!info.has_ament_package);
+        assert!(info.ament_target_dependencies.iter().any(|entry| {
+            entry.target == "real_node" && entry.dependencies == vec!["rclcpp"]
+        }));
+        assert!(!info
+            .ament_target_dependencies
+            .iter()
+            .any(|entry| entry.target == "fake_node"));
+        assert!(info.target_link_libraries.iter().any(|entry| {
+            entry.target == "real_node" && entry.libraries == vec!["real_lib"]
+        }));
+        assert!(!info
+            .target_link_libraries
+            .iter()
+            .any(|entry| entry.target == "fake_node"));
+    }
+
+    #[test]
     fn parse_cmake_lists_does_not_match_wrapper_macro_names() {
         let td = tempdir().expect("tempdir");
         let cmake_path = td.path().join("CMakeLists.txt");

@@ -6,11 +6,12 @@ use std::fs;
 
 pub fn parse_cmake_lists(path: &str) -> Result<CMakeInfo> {
     let text = fs::read_to_string(path)?;
+    let aux_text = strip_cmake_bracket_comments(&text);
     let mut info = CMakeInfo::default();
 
     parse_standard_commands(&text, &mut info)?;
-    normalize_find_package_required_flags(&text, &mut info)?;
-    parse_ros_commands(&text, &mut info)?;
+    normalize_find_package_required_flags(&aux_text, &mut info)?;
+    parse_ros_commands(&aux_text, &mut info)?;
 
     Ok(info)
 }
@@ -163,6 +164,59 @@ fn tokenize_unquoted_args(s: &str) -> Vec<String> {
         .split_whitespace()
         .map(|x| x.to_string())
         .collect()
+}
+
+fn strip_cmake_bracket_comments(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let mut out = String::with_capacity(s.len());
+    let mut i = 0usize;
+
+    while i < bytes.len() {
+        if bytes[i] == b'#' && i + 1 < bytes.len() && bytes[i + 1] == b'[' {
+            let mut eqs = 0usize;
+            let mut j = i + 2;
+            while j < bytes.len() && bytes[j] == b'=' {
+                eqs += 1;
+                j += 1;
+            }
+            if j < bytes.len() && bytes[j] == b'[' {
+                let start = j + 1;
+                let mut k = start;
+                let mut found = false;
+                while k < bytes.len() {
+                    if bytes[k] == b']' {
+                        let mut m = k + 1;
+                        let mut matched_eqs = 0usize;
+                        while matched_eqs < eqs && m < bytes.len() && bytes[m] == b'=' {
+                            matched_eqs += 1;
+                            m += 1;
+                        }
+                        if matched_eqs == eqs && m < bytes.len() && bytes[m] == b']' {
+                            for &b in &bytes[i..=m] {
+                                if b == b'\n' {
+                                    out.push('\n');
+                                } else {
+                                    out.push(' ');
+                                }
+                            }
+                            i = m + 1;
+                            found = true;
+                            break;
+                        }
+                    }
+                    k += 1;
+                }
+                if found {
+                    continue;
+                }
+            }
+        }
+
+        out.push(bytes[i] as char);
+        i += 1;
+    }
+
+    out
 }
 
 fn is_ament_dependency_keyword(s: &str) -> bool {
