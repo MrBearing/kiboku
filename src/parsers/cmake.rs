@@ -1,25 +1,24 @@
 use crate::models::cmake::{CMakeInfo, FindPackage, TargetDependencies, TargetLinks};
 use anyhow::Result;
-use cmake_parser::{parse_cmakelists, Command, Doc, Token};
-use regex::Regex;
+use cmake_parser::{parse_cmakelists, Command, Doc, RosCommand, Token};
 use std::fs;
 
 pub fn parse_cmake_lists(path: &str) -> Result<CMakeInfo> {
     let text = fs::read_to_string(path)?;
-    let aux_text = strip_cmake_bracket_comments(&text);
     let mut info = CMakeInfo::default();
 
-    parse_standard_commands(&text, &mut info)?;
-    normalize_find_package_required_flags(&aux_text, &mut info)?;
-    parse_ros_commands(&aux_text, &mut info)?;
+    let parse_text = if text.ends_with("\n") { text.clone() } else { format!("{text}\n") };
+    let tokens = parse_cmakelists(parse_text.as_bytes())?;
+    let doc = Doc::from(tokens);
+
+    parse_standard_commands(&doc, &mut info)?;
+    normalize_find_package_required_flags(&doc, &mut info);
+    parse_ros_and_raw_commands(&doc, &mut info);
 
     Ok(info)
 }
 
-fn parse_standard_commands(text: &str, info: &mut CMakeInfo) -> Result<()> {
-    let tokens = parse_cmakelists(text.as_bytes())?;
-    let doc = Doc::from(tokens);
-
+fn parse_standard_commands(doc: &Doc<'_>, info: &mut CMakeInfo) -> Result<()> {
     for cmd in doc.to_commands_iter() {
         let Ok(cmd) = cmd else {
             continue;
@@ -59,80 +58,52 @@ fn parse_standard_commands(text: &str, info: &mut CMakeInfo) -> Result<()> {
     Ok(())
 }
 
-fn normalize_find_package_required_flags(text: &str, info: &mut CMakeInfo) -> Result<()> {
-    let re_find = Regex::new(r"(?is)(?m)(^|\n)\s*find_package\s*\((.*?)\)")?;
-    let mut required_by_index = Vec::new();
+fn normalize_find_package_required_flags(doc: &Doc<'_>, info: &mut CMakeInfo) {
+    let required_by_index = doc
+        .raw_commands()
+        .filter(|raw| eq_ignore_ascii_case(raw.identifier.as_ref(), b"find_package"))
+        .filter(|raw| !raw.tokens.is_empty())
+        .map(|raw| {
+            raw.tokens
+                .iter()
+                .skip(1)
+                .any(|t| eq_ignore_ascii_case(t.as_ref(), b"REQUIRED"))
+        });
 
-    for cap in re_find.captures_iter(text) {
-        let Some(args) = cap.get(2).map(|m| m.as_str()) else {
-            continue;
-        };
-        let tokens = tokenize_unquoted_args(args);
-        if tokens.is_empty() {
-            continue;
-        }
-        required_by_index.push(tokens.iter().skip(1).any(|t| t.eq_ignore_ascii_case("REQUIRED")));
-    }
-
-    for (pkg, required) in info.find_packages.iter_mut().zip(required_by_index.into_iter()) {
+    for (pkg, required) in info.find_packages.iter_mut().zip(required_by_index) {
         pkg.required = required;
     }
-
-    Ok(())
 }
 
-fn parse_ros_commands(text: &str, info: &mut CMakeInfo) -> Result<()> {
-    let re_pkg = Regex::new(r"(?is)(?m)(^|\n)\s*(catkin_package|ament_package)\s*\((.*?)\)")?;
-    for cap in re_pkg.captures_iter(text) {
-        let Some(name) = cap.get(2).map(|m| m.as_str().to_ascii_lowercase()) else {
-            continue;
-        };
-        match name.as_str() {
-            "catkin_package" => info.has_catkin_package = true,
-            "ament_package" => info.has_ament_package = true,
-            _ => {}
+fn parse_ros_and_raw_commands(doc: &Doc<'_>, info: &mut CMakeInfo) {
+    for cmd in doc.ros_commands() {
+        match cmd {
+            RosCommand::AmentPackage => info.has_ament_package = true,
+            RosCommand::CatkinPackage => info.has_catkin_package = true,
+            RosCommand::AmentTargetDependencies(dep) => {
+                info.ament_target_dependencies.push(TargetDependencies {
+                    target: dep.target.to_string(),
+                    dependencies: dep.dependencies.iter().map(ToString::to_string).collect(),
+                });
+            }
         }
     }
 
-    let re_ament = Regex::new(r"(?is)(?m)(^|\n)\s*ament_target_dependencies\s*\((.*?)\)")?;
-    for cap in re_ament.captures_iter(text) {
-        let Some(args) = cap.get(2).map(|m| m.as_str()) else {
-            continue;
-        };
-        let tokens = tokenize_unquoted_args(args);
-        if let Some((target, rest)) = tokens.split_first() {
-            let dependencies = rest
-                .iter()
-                .filter(|item| !is_ament_dependency_keyword(item))
-                .cloned()
-                .collect::<Vec<_>>();
-            info.ament_target_dependencies.push(TargetDependencies {
-                target: target.clone(),
-                dependencies,
-            });
+    for raw in doc.raw_commands() {
+        if eq_ignore_ascii_case(raw.identifier.as_ref(), b"target_link_libraries") {
+            if let Some((target, rest)) = raw.tokens.split_first() {
+                let libraries = rest
+                    .iter()
+                    .filter(|token| !is_target_link_keyword(token.as_ref()))
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>();
+                info.target_link_libraries.push(TargetLinks {
+                    target: target.to_string(),
+                    libraries,
+                });
+            }
         }
     }
-
-    let re_link = Regex::new(r"(?is)(?m)(^|\n)\s*target_link_libraries\s*\((.*?)\)")?;
-    for cap in re_link.captures_iter(text) {
-        let Some(args) = cap.get(2).map(|m| m.as_str()) else {
-            continue;
-        };
-        let tokens = tokenize_unquoted_args(args);
-        if let Some((target, rest)) = tokens.split_first() {
-            let libraries = rest
-                .iter()
-                .filter(|item| !is_target_link_keyword(item))
-                .cloned()
-                .collect::<Vec<_>>();
-            info.target_link_libraries.push(TargetLinks {
-                target: target.clone(),
-                libraries,
-            });
-        }
-    }
-
-    Ok(())
 }
 
 fn required_from_basic_components(
@@ -153,79 +124,9 @@ fn token_to_string(token: &Token<'_>) -> String {
     token.to_string()
 }
 
-fn tokenize_unquoted_args(s: &str) -> Vec<String> {
-    let mut stripped = String::new();
-    for line in s.lines() {
-        let before_comment = line.split('#').next().unwrap_or_default();
-        stripped.push_str(before_comment);
-        stripped.push('\n');
-    }
-    stripped
-        .split_whitespace()
-        .map(|x| x.to_string())
-        .collect()
-}
-
-fn strip_cmake_bracket_comments(s: &str) -> String {
-    let bytes = s.as_bytes();
-    let mut out = String::with_capacity(s.len());
-    let mut i = 0usize;
-
-    while i < bytes.len() {
-        if bytes[i] == b'#' && i + 1 < bytes.len() && bytes[i + 1] == b'[' {
-            let mut eqs = 0usize;
-            let mut j = i + 2;
-            while j < bytes.len() && bytes[j] == b'=' {
-                eqs += 1;
-                j += 1;
-            }
-            if j < bytes.len() && bytes[j] == b'[' {
-                let start = j + 1;
-                let mut k = start;
-                let mut found = false;
-                while k < bytes.len() {
-                    if bytes[k] == b']' {
-                        let mut m = k + 1;
-                        let mut matched_eqs = 0usize;
-                        while matched_eqs < eqs && m < bytes.len() && bytes[m] == b'=' {
-                            matched_eqs += 1;
-                            m += 1;
-                        }
-                        if matched_eqs == eqs && m < bytes.len() && bytes[m] == b']' {
-                            for &b in &bytes[i..=m] {
-                                if b == b'\n' {
-                                    out.push('\n');
-                                } else {
-                                    out.push(' ');
-                                }
-                            }
-                            i = m + 1;
-                            found = true;
-                            break;
-                        }
-                    }
-                    k += 1;
-                }
-                if found {
-                    continue;
-                }
-            }
-        }
-
-        out.push(bytes[i] as char);
-        i += 1;
-    }
-
-    out
-}
-
-fn is_ament_dependency_keyword(s: &str) -> bool {
-    matches!(s.to_ascii_uppercase().as_str(), "SYSTEM" | "PUBLIC" | "INTERFACE")
-}
-
-fn is_target_link_keyword(s: &str) -> bool {
+fn is_target_link_keyword(token: &[u8]) -> bool {
     matches!(
-        s.to_ascii_uppercase().as_str(),
+        ascii_upper(token).as_str(),
         "PUBLIC"
             | "PRIVATE"
             | "INTERFACE"
@@ -236,4 +137,12 @@ fn is_target_link_keyword(s: &str) -> bool {
             | "LINK_PRIVATE"
             | "LINK_INTERFACE_LIBRARIES"
     )
+}
+
+fn eq_ignore_ascii_case(left: &[u8], right: &[u8]) -> bool {
+    left.eq_ignore_ascii_case(right)
+}
+
+fn ascii_upper(token: &[u8]) -> String {
+    String::from_utf8_lossy(token).to_ascii_uppercase()
 }

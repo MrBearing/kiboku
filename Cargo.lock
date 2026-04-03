@@ -122,8 +122,6 @@ checksum = "a1d728cc89cf3aee9ff92b05e62b19ee65a02b5702cff7d5a377e32c6ae29d8d"
 [[package]]
 name = "cmake-parser"
 version = "0.1.0-beta.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8fa02b17e863692c3125aeb13eb6ddd3ab2e06e149ac404dc4d045aa3eea1d59"
 dependencies = [
  "cmake-parser-derive",
  "nom",
@@ -133,8 +131,6 @@ dependencies = [
 [[package]]
 name = "cmake-parser-derive"
 version = "0.1.0-beta.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3a051b4c9c0fa30b2fbc858ce06eeccf849361974edb6a4c16c7f78b4c6eb810"
 dependencies = [
  "inflections",
  "proc-macro-error",

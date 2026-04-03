@@ -29,4 +29,7 @@ dirs-next = "2.0"
 include_dir = "0.7"
 tempfile = "3.5"
 
+[patch.crates-io]
+cmake-parser = { path = "../ros-cmake-parser/lib" }
+
 [dev-dependencies]
