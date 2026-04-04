@@ -6,7 +6,7 @@ description = "Static analyzer for ROS workspaces"
 readme = "README.md"
 license = "MIT"
 repository = "https://github.com/mrbearing/kiboku"
-authors = ["MrBearing <takumi1988okamoto@gmail.com>"]
+authors = ["Takumi Okamoto a.k.a MrBearing <takumi1988okamoto@gmail.com>"]
 keywords = ["ros", "ros2", "static-analysis", "migration", "robotics"]
 categories = ["development-tools", "command-line-utilities"]
 
