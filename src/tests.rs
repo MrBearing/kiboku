@@ -7,6 +7,7 @@ mod cli_tests {
     use crate::analyzer::analyze;
     use crate::commands;
     use crate::models::AnalysisReport;
+    use crate::parsers::cmake::parse_cmake_lists;
     use crate::parsers::package::parse_package_xml;
     use crate::plugins::loader::load_rules_from_path;
     use crate::scanner::scan_workspace;
@@ -130,6 +131,300 @@ suggestion = "#include <rclcpp/rclcpp.hpp>"
 
         let pkg = parse_package_xml(pkg_path.to_str().unwrap()).expect("parse package.xml");
         assert_eq!(pkg.build_type.as_deref(), Some("ament_cmake"));
+    }
+
+    #[test]
+    fn parse_cmake_lists_extracts_targets_and_dependencies() {
+        let td = tempdir().expect("tempdir");
+        let cmake_path = td.path().join("CMakeLists.txt");
+        write(
+            &cmake_path,
+            r#"cmake_minimum_required(VERSION 3.8)
+project(sample_pkg)
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(std_msgs REQUIRED)
+
+add_executable(my_node src/my_node.cpp)
+add_library(my_lib SHARED src/my_lib.cpp)
+ament_target_dependencies(my_node rclcpp std_msgs)
+target_link_libraries(my_node my_lib foo::bar)
+ament_package()
+"#,
+        )
+        .expect("write CMakeLists.txt");
+
+        let info = parse_cmake_lists(cmake_path.to_str().unwrap()).expect("parse cmake");
+
+        assert!(info.executables.iter().any(|t| t == "my_node"));
+        assert!(info.libraries.iter().any(|t| t == "my_lib"));
+        assert!(info.ament_target_dependencies.iter().any(|entry| {
+            entry.target == "my_node" && entry.dependencies == vec!["rclcpp", "std_msgs"]
+        }));
+        assert!(info.target_link_libraries.iter().any(|entry| {
+            entry.target == "my_node" && entry.libraries == vec!["my_lib", "foo::bar"]
+        }));
+    }
+
+    #[test]
+    fn parse_cmake_lists_supports_variable_target_names() {
+        let td = tempdir().expect("tempdir");
+        let cmake_path = td.path().join("CMakeLists.txt");
+        write(
+            &cmake_path,
+            r#"cmake_minimum_required(VERSION 3.8)
+project(sample_pkg)
+
+add_executable(${PROJECT_NAME}_node src/my_node.cpp)
+ament_target_dependencies(${PROJECT_NAME}_node rclcpp std_msgs)
+target_link_libraries(${PROJECT_NAME}_node ${PROJECT_NAME}_core foo::bar)
+"#,
+        )
+        .expect("write CMakeLists.txt");
+
+        let info = parse_cmake_lists(cmake_path.to_str().unwrap()).expect("parse cmake");
+
+        assert!(info.executables.iter().any(|t| t == "${PROJECT_NAME}_node"));
+        assert!(info.ament_target_dependencies.iter().any(|entry| {
+            entry.target == "${PROJECT_NAME}_node"
+                && entry.dependencies == vec!["rclcpp", "std_msgs"]
+        }));
+        assert!(info.target_link_libraries.iter().any(|entry| {
+            entry.target == "${PROJECT_NAME}_node"
+                && entry.libraries == vec!["${PROJECT_NAME}_core", "foo::bar"]
+        }));
+    }
+
+    #[test]
+    fn parse_cmake_lists_ignores_link_visibility_keywords() {
+        let td = tempdir().expect("tempdir");
+        let cmake_path = td.path().join("CMakeLists.txt");
+        write(
+            &cmake_path,
+            r#"target_link_libraries(my_node PUBLIC my_lib PRIVATE foo::bar INTERFACE baz::qux optimized optlib debug dbgllib general genlib)"#,
+        )
+        .expect("write CMakeLists.txt");
+
+        let info = parse_cmake_lists(cmake_path.to_str().unwrap()).expect("parse cmake");
+
+        assert!(info.target_link_libraries.iter().any(|entry| {
+            entry.target == "my_node"
+                && entry.libraries
+                    == vec![
+                        "my_lib", "foo::bar", "baz::qux", "optlib", "dbgllib", "genlib",
+                    ]
+        }));
+    }
+
+    #[test]
+    fn parse_cmake_lists_ignores_ament_dependency_keywords() {
+        let td = tempdir().expect("tempdir");
+        let cmake_path = td.path().join("CMakeLists.txt");
+        write(
+            &cmake_path,
+            r#"ament_target_dependencies(my_node SYSTEM PUBLIC INTERFACE rclcpp std_msgs)"#,
+        )
+        .expect("write CMakeLists.txt");
+
+        let info = parse_cmake_lists(cmake_path.to_str().unwrap()).expect("parse cmake");
+
+        assert!(info.ament_target_dependencies.iter().any(|entry| {
+            entry.target == "my_node" && entry.dependencies == vec!["rclcpp", "std_msgs"]
+        }));
+    }
+
+    #[test]
+    fn parse_cmake_lists_ignores_legacy_link_keywords() {
+        let td = tempdir().expect("tempdir");
+        let cmake_path = td.path().join("CMakeLists.txt");
+        write(
+            &cmake_path,
+            r#"target_link_libraries(my_node LINK_PUBLIC my_lib LINK_PRIVATE foo::bar LINK_INTERFACE_LIBRARIES baz::qux)"#,
+        )
+        .expect("write CMakeLists.txt");
+
+        let info = parse_cmake_lists(cmake_path.to_str().unwrap()).expect("parse cmake");
+
+        assert!(info.target_link_libraries.iter().any(|entry| {
+            entry.target == "my_node" && entry.libraries == vec!["my_lib", "foo::bar", "baz::qux"]
+        }));
+    }
+
+    #[test]
+    fn parse_cmake_lists_supports_uppercase_commands() {
+        let td = tempdir().expect("tempdir");
+        let cmake_path = td.path().join("CMakeLists.txt");
+        write(
+            &cmake_path,
+            r#"FIND_PACKAGE(rclcpp required)
+FIND_PACKAGE(std_msgs REQUIRED)
+FIND_PACKAGE(foo COMPONENTS required_tools)
+ADD_EXECUTABLE(MY_NODE src/my_node.cpp)
+ADD_LIBRARY(MY_LIB SHARED src/my_lib.cpp)
+AMENT_TARGET_DEPENDENCIES(MY_NODE rclcpp std_msgs)
+TARGET_LINK_LIBRARIES(MY_NODE public MY_LIB foo::bar)"#,
+        )
+        .expect("write CMakeLists.txt");
+
+        let info = parse_cmake_lists(cmake_path.to_str().unwrap()).expect("parse cmake");
+
+        assert!(info
+            .find_packages
+            .iter()
+            .any(|pkg| pkg.name == "rclcpp" && pkg.required));
+        assert!(info
+            .find_packages
+            .iter()
+            .any(|pkg| pkg.name == "std_msgs" && pkg.required));
+        assert!(info
+            .find_packages
+            .iter()
+            .any(|pkg| pkg.name == "foo" && !pkg.required));
+        assert_eq!(info.find_packages.len(), 3);
+        assert!(info.executables.iter().any(|t| t == "MY_NODE"));
+        assert!(info.libraries.iter().any(|t| t == "MY_LIB"));
+        assert!(info.ament_target_dependencies.iter().any(|entry| {
+            entry.target == "MY_NODE" && entry.dependencies == vec!["rclcpp", "std_msgs"]
+        }));
+        assert!(info.target_link_libraries.iter().any(|entry| {
+            entry.target == "MY_NODE" && entry.libraries == vec!["MY_LIB", "foo::bar"]
+        }));
+    }
+
+    #[test]
+    fn parse_cmake_lists_strips_line_comments_from_args() {
+        let td = tempdir().expect("tempdir");
+        let cmake_path = td.path().join("CMakeLists.txt");
+        write(
+            &cmake_path,
+            r#"ament_target_dependencies(my_node rclcpp # core ros client
+  std_msgs)
+target_link_libraries(my_node my_lib # internal lib
+  foo::bar)"#,
+        )
+        .expect("write CMakeLists.txt");
+
+        let info = parse_cmake_lists(cmake_path.to_str().unwrap()).expect("parse cmake");
+
+        assert!(info.ament_target_dependencies.iter().any(|entry| {
+            entry.target == "my_node" && entry.dependencies == vec!["rclcpp", "std_msgs"]
+        }));
+        assert!(info.target_link_libraries.iter().any(|entry| {
+            entry.target == "my_node" && entry.libraries == vec!["my_lib", "foo::bar"]
+        }));
+    }
+
+    #[test]
+    fn parse_cmake_lists_ignores_commented_out_commands() {
+        let td = tempdir().expect("tempdir");
+        let cmake_path = td.path().join("CMakeLists.txt");
+        write(
+            &cmake_path,
+            r#"# add_executable(old_node src/old.cpp)
+# ADD_LIBRARY(OLD_LIB SHARED src/old.cpp)
+add_executable(real_node src/real.cpp)
+# target_link_libraries(old_node old_lib)
+target_link_libraries(real_node real_lib)
+# catkin_package()
+# ament_package()"#,
+        )
+        .expect("write CMakeLists.txt");
+
+        let info = parse_cmake_lists(cmake_path.to_str().unwrap()).expect("parse cmake");
+
+        assert_eq!(info.executables, vec!["real_node"]);
+        assert!(info.libraries.is_empty());
+        assert!(!info.has_catkin_package);
+        assert!(!info.has_ament_package);
+        assert!(info
+            .target_link_libraries
+            .iter()
+            .any(|entry| { entry.target == "real_node" && entry.libraries == vec!["real_lib"] }));
+        assert!(!info
+            .target_link_libraries
+            .iter()
+            .any(|entry| entry.target == "old_node"));
+    }
+
+    #[test]
+    fn parse_cmake_lists_detects_package_commands_case_insensitively() {
+        let td = tempdir().expect("tempdir");
+        let cmake_path = td.path().join("CMakeLists.txt");
+        write(
+            &cmake_path,
+            r#"CATKIN_PACKAGE()
+AMENT_PACKAGE()"#,
+        )
+        .expect("write CMakeLists.txt");
+
+        let info = parse_cmake_lists(cmake_path.to_str().unwrap()).expect("parse cmake");
+
+        assert!(info.has_catkin_package);
+        assert!(info.has_ament_package);
+    }
+
+    #[test]
+    fn parse_cmake_lists_ignores_bracket_commented_ros_commands() {
+        let td = tempdir().expect("tempdir");
+        let cmake_path = td.path().join("CMakeLists.txt");
+        write(
+            &cmake_path,
+            r#"find_package(rclcpp REQUIRED)
+#[[
+find_package(fake_pkg REQUIRED)
+ament_target_dependencies(fake_node fake_dep)
+target_link_libraries(fake_node fake_lib)
+ament_package()
+]]
+add_executable(real_node src/real.cpp)
+ament_target_dependencies(real_node rclcpp)
+target_link_libraries(real_node real_lib)"#,
+        )
+        .expect("write CMakeLists.txt");
+
+        let info = parse_cmake_lists(cmake_path.to_str().unwrap()).expect("parse cmake");
+
+        assert!(info
+            .find_packages
+            .iter()
+            .any(|pkg| pkg.name == "rclcpp" && pkg.required));
+        assert!(!info.find_packages.iter().any(|pkg| pkg.name == "fake_pkg"));
+        assert!(!info.has_ament_package);
+        assert!(info
+            .ament_target_dependencies
+            .iter()
+            .any(|entry| { entry.target == "real_node" && entry.dependencies == vec!["rclcpp"] }));
+        assert!(!info
+            .ament_target_dependencies
+            .iter()
+            .any(|entry| entry.target == "fake_node"));
+        assert!(info
+            .target_link_libraries
+            .iter()
+            .any(|entry| { entry.target == "real_node" && entry.libraries == vec!["real_lib"] }));
+        assert!(!info
+            .target_link_libraries
+            .iter()
+            .any(|entry| entry.target == "fake_node"));
+    }
+
+    #[test]
+    fn parse_cmake_lists_does_not_match_wrapper_macro_names() {
+        let td = tempdir().expect("tempdir");
+        let cmake_path = td.path().join("CMakeLists.txt");
+        write(
+            &cmake_path,
+            r#"foo_add_executable(fake_node src/fake.cpp)
+my_target_link_libraries(fake_node fake_lib)
+real_add_library(fake_lib src/fake.cpp)"#,
+        )
+        .expect("write CMakeLists.txt");
+
+        let info = parse_cmake_lists(cmake_path.to_str().unwrap()).expect("parse cmake");
+
+        assert!(info.executables.is_empty());
+        assert!(info.libraries.is_empty());
+        assert!(info.target_link_libraries.is_empty());
     }
 
     #[test]

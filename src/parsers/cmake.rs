@@ -1,38 +1,124 @@
-use crate::models::cmake::{CMakeInfo, FindPackage};
+use crate::models::cmake::{CMakeInfo, FindPackage, TargetDependencies, TargetLinks};
 use anyhow::Result;
-use regex::Regex;
+use ros_cmake_parser::{parse_cmakelists, Command, Doc, RosCommand, Token};
 use std::fs;
 
 pub fn parse_cmake_lists(path: &str) -> Result<CMakeInfo> {
     let text = fs::read_to_string(path)?;
     let mut info = CMakeInfo::default();
 
-    let re_find =
-        Regex::new(r"find_package\s*\(\s*([A-Za-z0-9_:+-]+)(?:\s+([0-9\.]+))?(?:.*REQUIRED)?\)")
-            .unwrap();
-    for cap in re_find.captures_iter(&text) {
-        let name = cap
-            .get(1)
-            .map(|m| m.as_str().to_string())
-            .unwrap_or_default();
-        let version = cap.get(2).map(|m| m.as_str().to_string());
-        let required = cap
-            .get(0)
-            .map(|m| m.as_str().contains("REQUIRED"))
-            .unwrap_or(false);
-        info.find_packages.push(FindPackage {
-            name,
-            version,
-            required,
-        });
-    }
+    let parse_text = if text.ends_with('\n') {
+        text
+    } else {
+        format!("{text}\n")
+    };
+    let tokens = parse_cmakelists(parse_text.as_bytes())?;
+    let doc = Doc::from(tokens);
 
-    if text.contains("catkin_package") {
-        info.has_catkin_package = true;
-    }
-    if text.contains("ament_package") {
-        info.has_ament_package = true;
-    }
+    parse_standard_and_find_package_commands(&doc, &mut info)?;
+    parse_ros_and_raw_commands(&doc, &mut info);
 
     Ok(info)
+}
+
+fn parse_standard_and_find_package_commands(doc: &Doc<'_>, info: &mut CMakeInfo) -> Result<()> {
+    for (raw, cmd) in doc.raw_commands().zip(doc.to_commands_iter()) {
+        let Ok(cmd) = cmd else {
+            continue;
+        };
+
+        match cmd {
+            Command::FindPackage(pkg) => {
+                let (name, version) = match pkg.as_ref() {
+                    ros_cmake_parser::command::scripting::FindPackage::Basic(basic) => (
+                        token_to_string(&basic.package_name),
+                        basic.version.as_ref().map(token_to_string),
+                    ),
+                    ros_cmake_parser::command::scripting::FindPackage::Full(full) => (
+                        token_to_string(&full.package_name),
+                        full.version.as_ref().map(token_to_string),
+                    ),
+                };
+
+                let required = raw
+                    .tokens
+                    .iter()
+                    .skip(1)
+                    .any(|t| eq_ignore_ascii_case(t.as_ref(), b"REQUIRED"));
+
+                info.find_packages.push(FindPackage {
+                    name,
+                    version,
+                    required,
+                });
+            }
+            Command::AddExecutable(exec) => {
+                info.executables.push(token_to_string(&exec.name));
+            }
+            Command::AddLibrary(lib) => {
+                info.libraries.push(token_to_string(&lib.name));
+            }
+            _ => {}
+        }
+    }
+
+    Ok(())
+}
+
+fn parse_ros_and_raw_commands(doc: &Doc<'_>, info: &mut CMakeInfo) {
+    for cmd in doc.ros_commands() {
+        match cmd {
+            RosCommand::AmentPackage => info.has_ament_package = true,
+            RosCommand::CatkinPackage => info.has_catkin_package = true,
+            RosCommand::AmentTargetDependencies(dep) => {
+                info.ament_target_dependencies.push(TargetDependencies {
+                    target: dep.target.to_string(),
+                    dependencies: dep.dependencies.iter().map(ToString::to_string).collect(),
+                });
+            }
+        }
+    }
+
+    for raw in doc.raw_commands() {
+        if eq_ignore_ascii_case(raw.identifier.as_ref(), b"target_link_libraries") {
+            if let Some((target, rest)) = raw.tokens.split_first() {
+                let libraries = rest
+                    .iter()
+                    .filter(|token| !is_target_link_keyword(token.as_ref()))
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>();
+                info.target_link_libraries.push(TargetLinks {
+                    target: target.to_string(),
+                    libraries,
+                });
+            }
+        }
+    }
+}
+
+fn token_to_string(token: &Token<'_>) -> String {
+    token.to_string()
+}
+
+fn is_target_link_keyword(token: &[u8]) -> bool {
+    matches!(
+        ascii_upper(token).as_str(),
+        "PUBLIC"
+            | "PRIVATE"
+            | "INTERFACE"
+            | "DEBUG"
+            | "OPTIMIZED"
+            | "GENERAL"
+            | "LINK_PUBLIC"
+            | "LINK_PRIVATE"
+            | "LINK_INTERFACE_LIBRARIES"
+    )
+}
+
+fn eq_ignore_ascii_case(left: &[u8], right: &[u8]) -> bool {
+    left.eq_ignore_ascii_case(right)
+}
+
+fn ascii_upper(token: &[u8]) -> String {
+    String::from_utf8_lossy(token).to_ascii_uppercase()
 }
