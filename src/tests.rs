@@ -210,7 +210,9 @@ target_link_libraries(${PROJECT_NAME}_node ${PROJECT_NAME}_core foo::bar)
         assert!(info.target_link_libraries.iter().any(|entry| {
             entry.target == "my_node"
                 && entry.libraries
-                    == vec!["my_lib", "foo::bar", "baz::qux", "optlib", "dbgllib", "genlib"]
+                    == vec![
+                        "my_lib", "foo::bar", "baz::qux", "optlib", "dbgllib", "genlib",
+                    ]
         }));
     }
 
@@ -244,8 +246,7 @@ target_link_libraries(${PROJECT_NAME}_node ${PROJECT_NAME}_core foo::bar)
         let info = parse_cmake_lists(cmake_path.to_str().unwrap()).expect("parse cmake");
 
         assert!(info.target_link_libraries.iter().any(|entry| {
-            entry.target == "my_node"
-                && entry.libraries == vec!["my_lib", "foo::bar", "baz::qux"]
+            entry.target == "my_node" && entry.libraries == vec!["my_lib", "foo::bar", "baz::qux"]
         }));
     }
 
@@ -267,9 +268,18 @@ TARGET_LINK_LIBRARIES(MY_NODE public MY_LIB foo::bar)"#,
 
         let info = parse_cmake_lists(cmake_path.to_str().unwrap()).expect("parse cmake");
 
-        assert!(info.find_packages.iter().any(|pkg| pkg.name == "rclcpp" && pkg.required));
-        assert!(info.find_packages.iter().any(|pkg| pkg.name == "std_msgs" && pkg.required));
-        assert!(info.find_packages.iter().any(|pkg| pkg.name == "foo" && !pkg.required));
+        assert!(info
+            .find_packages
+            .iter()
+            .any(|pkg| pkg.name == "rclcpp" && pkg.required));
+        assert!(info
+            .find_packages
+            .iter()
+            .any(|pkg| pkg.name == "std_msgs" && pkg.required));
+        assert!(info
+            .find_packages
+            .iter()
+            .any(|pkg| pkg.name == "foo" && !pkg.required));
         assert_eq!(info.find_packages.len(), 3);
         assert!(info.executables.iter().any(|t| t == "MY_NODE"));
         assert!(info.libraries.iter().any(|t| t == "MY_LIB"));
@@ -326,10 +336,14 @@ target_link_libraries(real_node real_lib)
         assert!(info.libraries.is_empty());
         assert!(!info.has_catkin_package);
         assert!(!info.has_ament_package);
-        assert!(info.target_link_libraries.iter().any(|entry| {
-            entry.target == "real_node" && entry.libraries == vec!["real_lib"]
-        }));
-        assert!(!info.target_link_libraries.iter().any(|entry| entry.target == "old_node"));
+        assert!(info
+            .target_link_libraries
+            .iter()
+            .any(|entry| { entry.target == "real_node" && entry.libraries == vec!["real_lib"] }));
+        assert!(!info
+            .target_link_libraries
+            .iter()
+            .any(|entry| entry.target == "old_node"));
     }
 
     #[test]
@@ -370,19 +384,24 @@ target_link_libraries(real_node real_lib)"#,
 
         let info = parse_cmake_lists(cmake_path.to_str().unwrap()).expect("parse cmake");
 
-        assert!(info.find_packages.iter().any(|pkg| pkg.name == "rclcpp" && pkg.required));
+        assert!(info
+            .find_packages
+            .iter()
+            .any(|pkg| pkg.name == "rclcpp" && pkg.required));
         assert!(!info.find_packages.iter().any(|pkg| pkg.name == "fake_pkg"));
         assert!(!info.has_ament_package);
-        assert!(info.ament_target_dependencies.iter().any(|entry| {
-            entry.target == "real_node" && entry.dependencies == vec!["rclcpp"]
-        }));
+        assert!(info
+            .ament_target_dependencies
+            .iter()
+            .any(|entry| { entry.target == "real_node" && entry.dependencies == vec!["rclcpp"] }));
         assert!(!info
             .ament_target_dependencies
             .iter()
             .any(|entry| entry.target == "fake_node"));
-        assert!(info.target_link_libraries.iter().any(|entry| {
-            entry.target == "real_node" && entry.libraries == vec!["real_lib"]
-        }));
+        assert!(info
+            .target_link_libraries
+            .iter()
+            .any(|entry| { entry.target == "real_node" && entry.libraries == vec!["real_lib"] }));
         assert!(!info
             .target_link_libraries
             .iter()
