@@ -7,8 +7,8 @@ pub fn parse_cmake_lists(path: &str) -> Result<CMakeInfo> {
     let text = fs::read_to_string(path)?;
     let mut info = CMakeInfo::default();
 
-    let parse_text = if text.ends_with("\n") {
-        text.clone()
+    let parse_text = if text.ends_with('\n') {
+        text
     } else {
         format!("{text}\n")
     };
