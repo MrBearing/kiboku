@@ -15,33 +15,36 @@ pub fn parse_cmake_lists(path: &str) -> Result<CMakeInfo> {
     let tokens = parse_cmakelists(parse_text.as_bytes())?;
     let doc = Doc::from(tokens);
 
-    parse_standard_commands(&doc, &mut info)?;
-    normalize_find_package_required_flags(&doc, &mut info);
+    parse_standard_and_find_package_commands(&doc, &mut info)?;
     parse_ros_and_raw_commands(&doc, &mut info);
 
     Ok(info)
 }
 
-fn parse_standard_commands(doc: &Doc<'_>, info: &mut CMakeInfo) -> Result<()> {
-    for cmd in doc.to_commands_iter() {
+fn parse_standard_and_find_package_commands(doc: &Doc<'_>, info: &mut CMakeInfo) -> Result<()> {
+    for (raw, cmd) in doc.raw_commands().zip(doc.to_commands_iter()) {
         let Ok(cmd) = cmd else {
             continue;
         };
 
         match cmd {
             Command::FindPackage(pkg) => {
-                let (name, version, required) = match pkg.as_ref() {
+                let (name, version) = match pkg.as_ref() {
                     ros_cmake_parser::command::scripting::FindPackage::Basic(basic) => (
                         token_to_string(&basic.package_name),
                         basic.version.as_ref().map(token_to_string),
-                        required_from_basic_components(basic.components.as_ref()),
                     ),
                     ros_cmake_parser::command::scripting::FindPackage::Full(full) => (
                         token_to_string(&full.package_name),
                         full.version.as_ref().map(token_to_string),
-                        required_from_full_components(full.components.as_ref()),
                     ),
                 };
+
+                let required = raw
+                    .tokens
+                    .iter()
+                    .skip(1)
+                    .any(|t| eq_ignore_ascii_case(t.as_ref(), b"REQUIRED"));
 
                 info.find_packages.push(FindPackage {
                     name,
@@ -60,23 +63,6 @@ fn parse_standard_commands(doc: &Doc<'_>, info: &mut CMakeInfo) -> Result<()> {
     }
 
     Ok(())
-}
-
-fn normalize_find_package_required_flags(doc: &Doc<'_>, info: &mut CMakeInfo) {
-    let required_by_index = doc
-        .raw_commands()
-        .filter(|raw| eq_ignore_ascii_case(raw.identifier.as_ref(), b"find_package"))
-        .filter(|raw| !raw.tokens.is_empty())
-        .map(|raw| {
-            raw.tokens
-                .iter()
-                .skip(1)
-                .any(|t| eq_ignore_ascii_case(t.as_ref(), b"REQUIRED"))
-        });
-
-    for (pkg, required) in info.find_packages.iter_mut().zip(required_by_index) {
-        pkg.required = required;
-    }
 }
 
 fn parse_ros_and_raw_commands(doc: &Doc<'_>, info: &mut CMakeInfo) {
@@ -108,20 +94,6 @@ fn parse_ros_and_raw_commands(doc: &Doc<'_>, info: &mut CMakeInfo) {
             }
         }
     }
-}
-
-fn required_from_basic_components(
-    components: Option<&ros_cmake_parser::command::scripting::find_package::PackageComponents<'_>>,
-) -> bool {
-    use ros_cmake_parser::command::scripting::find_package::PackageComponents;
-    matches!(components, Some(PackageComponents::Required(_)))
-}
-
-fn required_from_full_components(
-    components: Option<&ros_cmake_parser::command::scripting::find_package::PackageComponents<'_>>,
-) -> bool {
-    use ros_cmake_parser::command::scripting::find_package::PackageComponents;
-    matches!(components, Some(PackageComponents::Required(_)))
 }
 
 fn token_to_string(token: &Token<'_>) -> String {
