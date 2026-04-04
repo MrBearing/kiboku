@@ -22,14 +22,12 @@ serde_json = "1.0.148"
 clap = { version = "4.5", features = ["derive"] }
 anyhow = "1.0"
 regex = "1.10"
-cmake-parser = "0.1.0-beta.1"
+ros-cmake-parser = "0.1.1"
 toml = "0.9.8"
 glob = "0.3"
 dirs-next = "2.0"
 include_dir = "0.7"
 tempfile = "3.5"
 
-[patch.crates-io]
-cmake-parser = { path = "../ros-cmake-parser/lib" }
 
 [dev-dependencies]

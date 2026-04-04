@@ -1,13 +1,17 @@
 use crate::models::cmake::{CMakeInfo, FindPackage, TargetDependencies, TargetLinks};
 use anyhow::Result;
-use cmake_parser::{parse_cmakelists, Command, Doc, RosCommand, Token};
+use ros_cmake_parser::{parse_cmakelists, Command, Doc, RosCommand, Token};
 use std::fs;
 
 pub fn parse_cmake_lists(path: &str) -> Result<CMakeInfo> {
     let text = fs::read_to_string(path)?;
     let mut info = CMakeInfo::default();
 
-    let parse_text = if text.ends_with("\n") { text.clone() } else { format!("{text}\n") };
+    let parse_text = if text.ends_with("\n") {
+        text.clone()
+    } else {
+        format!("{text}\n")
+    };
     let tokens = parse_cmakelists(parse_text.as_bytes())?;
     let doc = Doc::from(tokens);
 
@@ -27,12 +31,12 @@ fn parse_standard_commands(doc: &Doc<'_>, info: &mut CMakeInfo) -> Result<()> {
         match cmd {
             Command::FindPackage(pkg) => {
                 let (name, version, required) = match pkg.as_ref() {
-                    cmake_parser::command::scripting::FindPackage::Basic(basic) => (
+                    ros_cmake_parser::command::scripting::FindPackage::Basic(basic) => (
                         token_to_string(&basic.package_name),
                         basic.version.as_ref().map(token_to_string),
                         required_from_basic_components(basic.components.as_ref()),
                     ),
-                    cmake_parser::command::scripting::FindPackage::Full(full) => (
+                    ros_cmake_parser::command::scripting::FindPackage::Full(full) => (
                         token_to_string(&full.package_name),
                         full.version.as_ref().map(token_to_string),
                         required_from_full_components(full.components.as_ref()),
@@ -107,16 +111,16 @@ fn parse_ros_and_raw_commands(doc: &Doc<'_>, info: &mut CMakeInfo) {
 }
 
 fn required_from_basic_components(
-    components: Option<&cmake_parser::command::scripting::find_package::PackageComponents<'_>>,
+    components: Option<&ros_cmake_parser::command::scripting::find_package::PackageComponents<'_>>,
 ) -> bool {
-    use cmake_parser::command::scripting::find_package::PackageComponents;
+    use ros_cmake_parser::command::scripting::find_package::PackageComponents;
     matches!(components, Some(PackageComponents::Required(_)))
 }
 
 fn required_from_full_components(
-    components: Option<&cmake_parser::command::scripting::find_package::PackageComponents<'_>>,
+    components: Option<&ros_cmake_parser::command::scripting::find_package::PackageComponents<'_>>,
 ) -> bool {
-    use cmake_parser::command::scripting::find_package::PackageComponents;
+    use ros_cmake_parser::command::scripting::find_package::PackageComponents;
     matches!(components, Some(PackageComponents::Required(_)))
 }
 
