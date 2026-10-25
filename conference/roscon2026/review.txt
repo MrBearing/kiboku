@@ -1,0 +1,87 @@
+ROSCon 2026 Paper #84 Reviews and Comments
+===========================================================================
+Paper #84 Kiboku: Static Analysis and Visualization for ROS Workspaces
+
+
+Review #84A
+===========================================================================
+
+Relevance to the ROS community
+------------------------------
+4. Appropriate for ROSCon
+
+Impact and impression
+---------------------
+2. Some impact
+
+Uniqueness and novelty
+----------------------
+2. The topic has been presented before and this is a minor update,
+   extension, or revision
+
+Quality of Proposal
+-------------------
+4. Clear, coherent, and well-justified talk proposal
+
+Open Source Availability
+------------------------
+3. Open sourced with non-OSI-approved license, or open access
+
+Relevance to robotics and current challenges
+--------------------------------------------
+2. Tangentially relevant to robotics
+
+Reviewer expertise
+------------------
+4. I know a lot about this area
+
+Paper summary
+-------------
+This proposal presents Kobuki, a tool that is intended to statically analyze ROS workspaces with zero dependencies on ROS binaries or ROS stack.
+
+Comments for authors
+--------------------
+This tool is an interesting approach for a statically code analysis on ROS workspaces. I think some real-world examples of why this is a problem in the robotics community would help to understand the relevance of these tools and why it is better than other approaches.
+
+
+
+Review #84B
+===========================================================================
+
+Relevance to the ROS community
+------------------------------
+5. Perfectly suited for ROSCon
+
+Impact and impression
+---------------------
+2. Some impact
+
+Uniqueness and novelty
+----------------------
+3. The topic has been presented before and this is an alternative approach,
+   implementation, observation, or significant time has passed and
+   technology has improved
+
+Quality of Proposal
+-------------------
+3. Reasonably clear but lacking in detail or justification
+
+Open Source Availability
+------------------------
+4. Open sourced with OSI-approved license
+
+Relevance to robotics and current challenges
+--------------------------------------------
+3. Relevant to robotics but not to current challenges
+
+Reviewer expertise
+------------------
+3. I know the material, but am not an expert
+
+Paper summary
+-------------
+This talk presents the kiboku project, a static ROS workspace analyzer.
+
+Comments for authors
+--------------------
+Interesting tool. I would appreciate a discussion about using something like kiboku compared with explicit workspace management tools like pixi or bazel
